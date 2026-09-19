@@ -5,65 +5,52 @@ def apply_modern_styles():
     pass
 
 def render_custom_sidebar(active_page="Home"):
-    """Render the custom sidebar HTML/CSS in Streamlit"""
+    """Render the custom sidebar using styled Streamlit buttons"""
+    
+    st.sidebar.markdown("""
+        <div class="sidebar-header" style="text-align: center; margin-bottom: 2rem;">
+            <div style="font-size: 2rem; font-weight: bold; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">SR</div>
+            <div class="sidebar-title" style="font-weight: 600;">Smart Resume AI</div>
+            <div class="sidebar-subtitle" style="color: var(--text-secondary); font-size: 0.8rem;">Build Your Better Tomorrow</div>
+        </div>
+    """, unsafe_allow_html=True)
     
     nav_items = [
-        {"name": "Home", "icon": "fa-home", "color": "#63B3ED"},
-        {"name": "Resume Analyzer", "icon": "fa-search", "color": "#9F7AEA"},
-        {"name": "Resume Builder", "icon": "fa-file-alt", "color": "#68D391"},
-        {"name": "Job Search", "icon": "fa-briefcase", "color": "#F6AD55"},
-        {"name": "Dashboard", "icon": "fa-chart-bar", "color": "#4FD1C5"},
-        {"name": "Feedback", "icon": "fa-comment-alt", "color": "#FC8181"},
-        {"name": "About", "icon": "fa-info-circle", "color": "#A0AEC0"}
+        ("Home", "Home"),
+        ("Analyzer", "Resume Analyzer"),
+        ("Builder", "Resume Builder"),
+        ("Jobs", "Job Search"),
+        ("Dashboard", "Dashboard"),
+        ("Feedback", "Feedback"),
+        ("About", "About")
     ]
     
-    nav_html = ""
-    for item in nav_items:
-        active_class = "active" if item["name"] == active_page else ""
-        nav_html += f"""
-        <div class="nav-item {active_class}">
-            <i class="fas {item['icon']}" style="color: {item['color']}; width: 20px; text-align: center;"></i>
-            <span>{item['name']}</span>
-        </div>
-        """
-        
-    sidebar_html = f"""
-    <div class="custom-sidebar">
-        <div class="sidebar-header">
-            <div class="sidebar-logo">SR</div>
-            <div>
-                <div class="sidebar-title">Smart Resume AI</div>
-                <div class="sidebar-subtitle">Build Your Better Tomorrow</div>
-            </div>
-        </div>
-        
-        <div class="sidebar-nav">
-            {nav_html}
-        </div>
-        
-        <div class="sidebar-bottom">
-            <div class="promo-card">
-                <i class="fas fa-sparkles promo-icon"></i>
-                <div class="promo-text">
-                    <h4>AI-Powered<br>Career Growth</h4>
-                    <p>Analyze. Improve. Build. Apply.</p>
-                </div>
-            </div>
+    for key, display_name in nav_items:
+        # Use primary kind if active, secondary if not
+        kind = "primary" if display_name.lower() == active_page.lower() else "secondary"
+        if st.sidebar.button(display_name, key=f"nav_{key}", use_container_width=True, type=kind):
+            st.session_state.page = display_name.lower()
+            st.rerun()
             
-            <div class="theme-toggle">
-                <span>Theme</span>
-                <div class="toggle-switch">
-                    <div class="toggle-btn active"><i class="fas fa-sun"></i></div>
-                    <div class="toggle-btn"><i class="fas fa-moon" style="color: var(--text-secondary);"></i></div>
-                </div>
+    st.sidebar.markdown("""
+        <div style="margin-top: auto; padding-top: 2rem;">
+            <div class="glass-card" style="text-align: center; padding: 1rem;">
+                <div style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.5rem;">AI-Powered<br>Career Growth</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary);">Analyze. Improve. Build.</div>
             </div>
         </div>
-    </div>
-    """
-    st.sidebar.markdown(sidebar_html, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-def hero_section():
-    """Render the exact hero section from the mockup"""
+def hero_section(title=None, subtitle=None):
+    """Render the hero section. If title/subtitle are given, render a simple page hero; otherwise the home page hero."""
+    if title:
+        st.markdown(f"""
+        <div class="saas-header" style="margin-bottom: 2rem;">
+            <h1 class="saas-title">{title}</h1>
+            {f'<p class="saas-subtitle">{subtitle}</p>' if subtitle else ''}
+        </div>
+        """, unsafe_allow_html=True)
+        return
     st.markdown("""
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
         <div class="hero-section">
@@ -297,3 +284,21 @@ def render_suggestions_section(suggestions):
                 <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">{sug.get('description', '')}</p>
             </div>
         """, unsafe_allow_html=True)
+
+def about_section(bio_html, image_path=None, social_links=None):
+    """Render the About page profile section."""
+    social_links = social_links or {}
+    
+    links_html = ""
+    for key, url in social_links.items():
+        label = key.capitalize()
+        links_html += f'<a href="{url}" target="_blank" style="color: var(--accent-primary); margin-right: 1rem; text-decoration: none;">{label}</a>'
+    
+    st.markdown(f"""
+        <div class="glass-card" style="padding: 2rem;">
+            {bio_html}
+            <div style="margin-top: 1.5rem;">
+                {links_html}
+            </div>
+        </div>
+    """, unsafe_allow_html=True)

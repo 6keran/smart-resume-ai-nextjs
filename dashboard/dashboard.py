@@ -77,7 +77,7 @@ class DashboardManager:
                     'high_scoring': 0
                 }
         
-        conn.close()
+        # conn.close()
         return metrics
 
     def get_skill_distribution(self):
@@ -124,7 +124,7 @@ class DashboardManager:
             categories.append(row[0])
             counts.append(row[1])
             
-        conn.close()
+        # conn.close()
         return categories, counts
 
     def get_weekly_trends(self):
@@ -143,7 +143,7 @@ class DashboardManager:
             """, (date,))
             submissions.append(cursor.fetchone()[0])
             
-        conn.close()
+        # conn.close()
         return [d[-3:] for d in dates], submissions  # Return shortened date format (e.g., 'Mon', 'Tue')
 
     def get_job_category_stats(self):
@@ -167,7 +167,7 @@ class DashboardManager:
             categories.append(row[0])
             success_rates.append(row[2] or 0)
             
-        conn.close()
+        # conn.close()
         return categories, success_rates
 
     def render_admin_panel(self):
@@ -218,7 +218,7 @@ class DashboardManager:
                     )
 
         # Database Stats
-        st.sidebar.markdown("### 📊 Database Stats")
+        st.sidebar.markdown("###  Database Stats")
         stats = self.get_database_stats()
         st.sidebar.markdown(f"""
             - Total Resumes: {stats['total_resumes']}
@@ -251,11 +251,11 @@ class DashboardManager:
             LEFT JOIN resume_analysis a ON r.id = a.resume_id
             ORDER BY r.created_at DESC
             ''')
-            conn.close()
+            # conn.close()
             return cursor.fetchall()
         except Exception as e:
             print(f"Error fetching resume data: {str(e)}")
-            conn.close()
+            # conn.close()
             return []
 
     def render_resume_data_section(self):
@@ -425,7 +425,7 @@ class DashboardManager:
 
             df = pd.read_sql_query(query, conn)
 
-            conn.close()
+            # conn.close()
             
             # Create Excel writer object
             output = BytesIO()
@@ -484,7 +484,7 @@ class DashboardManager:
 
             df = pd.read_sql_query(query, conn)
 
-            conn.close()
+            # conn.close()
             return df.to_csv(index=False).encode('utf-8')
         except Exception as e:
             st.error(f"Error exporting to CSV: {str(e)}")
@@ -503,7 +503,7 @@ class DashboardManager:
 
             df = pd.read_sql_query(query, conn)
 
-            conn.close()
+            # conn.close()
             return df.to_json(orient='records', date_format='iso')
         except Exception as e:
             st.error(f"Error exporting to JSON: {str(e)}")
@@ -541,7 +541,7 @@ class DashboardManager:
         else:
             stats['storage_size'] = f"{size_bytes/(1024*1024):.1f} MB"
         
-        conn.close()
+        # conn.close()
         return stats
 
     def get_admin_logs(self):
@@ -554,11 +554,11 @@ class DashboardManager:
             FROM admin_logs
             ORDER BY timestamp DESC
             ''')
-            conn.close()
+            # conn.close()
             return cursor.fetchall()
         except Exception as e:
             print(f"Error fetching admin logs: {str(e)}")
-            conn.close()
+            # conn.close()
             return []
 
     def render_dashboard(self):
@@ -677,7 +677,7 @@ class DashboardManager:
             <div class="dashboard-container animate-fade-in">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div class="dashboard-title">
-                        <span class="dashboard-icon">📊</span>
+                        <span class="dashboard-icon"></span>
                         Resume Analytics Dashboard
                     </div>
                     <div style="color: rgba(255, 255, 255, 0.7);">
@@ -766,7 +766,7 @@ class DashboardManager:
             st.markdown('</div>', unsafe_allow_html=True)
 
         # Key Insights Section
-        st.markdown('<div class="section-title">🎯 Key Insights</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title"> Key Insights</div>', unsafe_allow_html=True)
         insights = self.get_detailed_insights()
         
         st.markdown('<div class="insights-grid">', unsafe_allow_html=True)
@@ -845,7 +845,7 @@ class DashboardManager:
                     'class': 'trend-neutral'
                 }
         
-        conn.close()
+        # conn.close()
         return indicators
 
     def get_detailed_insights(self):
@@ -932,7 +932,7 @@ class DashboardManager:
                 'trend_value': f"Top {len(top_skills)}"
             })
         
-        conn.close()
+        # conn.close()
         return insights
 
     def get_quick_stats(self):
@@ -955,13 +955,29 @@ class DashboardManager:
         # Success Rate
         success_rate = (high_performing / total_resumes * 100) if total_resumes > 0 else 0
         
-        conn.close()
-        return {
-            "Total Resumes": f"{total_resumes:,}",
-            "Avg ATS Score": f"{avg_ats:.1f}%",
-            "High Performing": f"{high_performing:,}",
-            "Success Rate": f"{success_rate:.1f}%"
+        data = {
+            "total_resumes": f"{total_resumes:,}",
+            "avg_ats_score": avg_ats,
+            "active_users": f"{high_performing:,}",
+            "success_rate": success_rate
         }
+        
+        # Display Top Metrics
+        st.markdown('<div class="glass-card" style="margin-bottom: 2rem;">', unsafe_allow_html=True)
+        cols = st.columns(4)
+        
+        with cols[0]:
+            st.metric("Total Resumes", data['total_resumes'])
+        with cols[1]:
+            st.metric("Avg ATS Score", f"{data['avg_ats_score']:.1f}%")
+        with cols[2]:
+            st.metric("Active Users", data['active_users'])
+        with cols[3]:
+            st.metric("Success Rate", f"{data['success_rate']:.1f}%")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # conn.close()
+        return data
 
     def create_enhanced_ats_gauge(self, value):
         """Create an enhanced ATS score gauge chart"""

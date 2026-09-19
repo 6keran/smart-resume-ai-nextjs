@@ -4,6 +4,6 @@ Centralized Configuration Settings
 
 # Profile Configuration for the About Page
 PROFILE_NAME = "Kiran"
-PROFILE_EMAIL = "kiran81232@gmail.com"
-PROFILE_GITHUB = ""
-PROFILE_LINKEDIN = ""
+PROFILE_EMAIL = "kiran@gmail.com"
+PROFILE_GITHUB = "placeholder_github_url"
+PROFILE_LINKEDIN = "placeholder_linkedin_url"

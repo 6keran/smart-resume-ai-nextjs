@@ -118,7 +118,7 @@ def render_company_section():
     """, unsafe_allow_html=True)
 
     # Featured Companies
-    st.markdown("### 🏢 Featured Companies")
+    st.markdown("### 🏢 Featured Companies", unsafe_allow_html=True)
     
     tabs = st.tabs(["All Companies", "Tech Giants", "Indian Tech", "Global Corps"])
     
@@ -235,7 +235,7 @@ def render_market_insights():
         </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("### 📊 Job Market Insights")
+    st.markdown("###  Job Market Insights", unsafe_allow_html=True)
     
     tabs = st.tabs(["Trending Skills", "Top Locations", "Salary Insights"])
     
@@ -296,8 +296,8 @@ def render_market_insights():
 
 def render_job_search():
     """Render job search page with enhanced features"""
-    st.title("🔍 Smart Job Search")
-    st.markdown("Find Your Dream Job Across Multiple Platforms")
+    st.title(" Smart Job Search")
+    st.markdown("Find Your Dream Job Across Multiple Platforms", unsafe_allow_html=True)
     
     # Market Insights Section (Above Search)
     render_market_insights()
@@ -399,7 +399,7 @@ def render_job_search():
                         selected_loc_type = next((loc.get("type") for loc in filtered_locations if loc["text"] == selected_location), None)
                         
                         if selected_loc_type == "state":
-                            st.markdown(f"**Cities in {selected_location}:**")
+                            st.markdown(f"**Cities in {selected_location}:**", unsafe_allow_html=True)
                             cities = get_cities_by_state(selected_location)
                             
                             # Display cities as clickable buttons
@@ -410,7 +410,7 @@ def render_job_search():
                                         location = city['text']
 
             # Advanced Filters
-            with st.expander("🎯 Advanced Filters"):
+            with st.expander(" Advanced Filters"):
                 st.markdown('<div class="filter-section">', unsafe_allow_html=True)
                 filter_cols = st.columns(3)
                 
@@ -473,7 +473,7 @@ def render_job_search():
                             </style>
                         """, unsafe_allow_html=True)
                         
-                        st.markdown("### 🎯 Job Search Results")
+                        st.markdown("###  Job Search Results", unsafe_allow_html=True)
                         for result in results:
                             with st.container():
                                 st.markdown(f"""

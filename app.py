@@ -6,10 +6,10 @@ from PIL import Image
 from jobs.job_search import render_job_search
 from datetime import datetime
 from ui_components import (
-    apply_modern_styles, hero_section, feature_card, about_section,
+    apply_modern_styles, hero_section, about_section,
     page_header, render_analytics_section, render_activity_section,
     render_suggestions_section, render_custom_sidebar, core_features_grid, 
-    mission_banner, footer as custom_footer
+    mission_banner, footer as custom_footer, metric_card
 )
 from feedback.feedback import FeedbackManager
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -616,19 +616,12 @@ class ResumeApp:
             social_links['email'] = f"mailto:{PROFILE_EMAIL}"
             
         bio_content = f"""
-        <h2 style="color: white; margin-bottom: 0.5rem;">{PROFILE_NAME}</h2>
-        <p style="color: var(--accent-primary); font-size: 1.1rem; margin-bottom: 1.5rem;">Creator</p>
-        <p style="color: #ddd; line-height: 1.6;">
-            Hello! I'm {PROFILE_NAME}. I created Smart Resume AI to revolutionize how job seekers approach their career journey.
-            With my background in software development and AI, I've designed this platform to
-            provide intelligent, data-driven insights for resume optimization.
-        </p>
-        <div style="margin-top: 2rem;">
-            <h3 style="color: white; margin-bottom: 1rem;">Our Vision</h3>
-            <p style="color: #ddd; line-height: 1.6; font-style: italic;">
-                "Smart Resume AI represents my vision of democratizing career advancement through technology.
-                By combining cutting-edge AI with intuitive design, this platform empowers job seekers at
-                every career stage to showcase their true potential and stand out in today's competitive job market."
+        <div style="margin-bottom: 2rem;">
+            <h2 style="color: white; margin-bottom: 0.5rem;">{PROFILE_NAME}</h2>
+            <p style="color: var(--accent-primary); font-size: 1.1rem; margin-bottom: 1.5rem;">Creator</p>
+            <p style="color: var(--text-secondary); line-height: 1.6;">
+                Smart Resume AI is an intelligent platform designed to help job seekers optimize their resumes 
+                and stand out in the competitive job market.
             </p>
         </div>
         """
@@ -699,7 +692,7 @@ class ResumeApp:
     <ul style="margin-top: 0; padding-left: 20px;">
         <li><a href="https://github.com/Hunterdii/AI-Nexus" target="_blank" style="color: #4CAF50;">AI Nexus</a></li>
     </ul>
-    <div style="margin-top: 10px;">If you find this project helpful, please consider ⭐ starring the repo!</div>
+    <div style="margin-top: 10px;">If you find this project helpful, please consider  starring the repo!</div>
 </div>
 """
         st.sidebar.markdown(message, unsafe_allow_html=True)
@@ -721,7 +714,7 @@ class ResumeApp:
             st.rerun()
         
         # Create a mapping of cleaned page names to original names
-        page_mapping = {name.lower().replace(" ", "_").replace("🏠", "").replace("🔍", "").replace("📝", "").replace("📊", "").replace("🎯", "").replace("💬", "").replace("ℹ️", "").strip(): name 
+        page_mapping = {name.lower().replace(" ", "_").replace("", "").replace("", "").replace("", "").replace("", "").replace("", "").replace("", "").replace("", "").strip(): name 
                        for name in self.pages.keys()}
         
         # Render the appropriate page

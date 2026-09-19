@@ -26,7 +26,9 @@ def render_analyzer_page(app):
         # For brevity and since the user wants a premium AI SaaS, we will focus on AI.
         
     with analyzer_tabs[1]:
-        st.markdown('<h3>AI Resume Analysis</h3>', unsafe_allow_html=True)
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown('<h3 style="margin-top: 0;">AI Resume Analysis</h3>', unsafe_allow_html=True)
+        st.markdown('<p style="color: var(--text-secondary);">Upload your resume for a comprehensive AI review.</p>', unsafe_allow_html=True)
         uploaded_file = st.file_uploader("Upload your resume (PDF/DOCX)", type=['pdf', 'docx'], key="ai_resume")
         
         if uploaded_file and st.button("Analyze with Gemini AI", use_container_width=True, type="primary"):
@@ -50,6 +52,7 @@ def render_analyzer_page(app):
                         st.rerun()
 
         if 'latest_ai_analysis' in st.session_state:
+            st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('<hr class="saas-divider">', unsafe_allow_html=True)
             analysis = st.session_state['latest_ai_analysis']
             
@@ -66,8 +69,9 @@ def render_analyzer_page(app):
             st.markdown('</div>', unsafe_allow_html=True)
             
     with analyzer_tabs[2]:
-        st.markdown('<h3>Job Description Match</h3>', unsafe_allow_html=True)
-        st.write("Compare your resume against a specific job description to find missing keywords and tailor your application.")
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown('<h3 style="margin-top: 0;">Job Description Match</h3>', unsafe_allow_html=True)
+        st.markdown('<p style="color: var(--text-secondary);">Compare your resume against a specific job description to find missing keywords and tailor your application.</p>', unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
         with col1:
@@ -89,18 +93,20 @@ def render_analyzer_page(app):
                     st.markdown('</div>', unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"Error during job match: {str(e)}")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with analyzer_tabs[3]:
-        st.markdown('<h3>AI Bullet Point Improver</h3>', unsafe_allow_html=True)
-        st.write("Paste a bullet point from your experience section. AI will rewrite it using strong action verbs and metrics.")
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown('<h3 style="margin-top: 0;">AI Bullet Point Improver</h3>', unsafe_allow_html=True)
+        st.markdown('<p style="color: var(--text-secondary);">Paste a bullet point from your experience section. AI will rewrite it using strong action verbs and metrics.</p>', unsafe_allow_html=True)
         
         bullet = st.text_area("Original Bullet Point", height=100, placeholder="e.g. Led a team of 5 to build a new feature")
-        if bullet and st.button("Improve Bullet", use_container_width=True):
+        if bullet and st.button("Improve Bullet", use_container_width=True, type="primary"):
             with st.spinner("Improving..."):
                 if hasattr(app.ai_analyzer, 'improve_bullet'):
                     improved = app.ai_analyzer.improve_bullet(bullet)
                     st.markdown('<div class="glass-card" style="margin-top: 1rem;">', unsafe_allow_html=True)
-                    st.markdown("#### Improved Versions:")
+                    st.markdown("#### Improved Versions:", unsafe_allow_html=True)
                     st.markdown(improved, unsafe_allow_html=False)
                     st.markdown('</div>', unsafe_allow_html=True)
                 else:

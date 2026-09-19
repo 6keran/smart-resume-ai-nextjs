@@ -562,7 +562,7 @@ class LinkedInScraper:
         """, unsafe_allow_html=True)
         
         # Display job count
-        st.markdown(f'<div class="job-count">🎯 Found {len(df_final)} matching jobs on LinkedIn</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="job-count"> Found {len(df_final)} matching jobs on LinkedIn</div>', unsafe_allow_html=True)
         
         # Display each job
         for i in range(len(df_final)):
@@ -583,7 +583,7 @@ class LinkedInScraper:
             
             # Job description in expander with better formatting
             with st.expander("View Job Description"):
-                st.markdown(description)
+                st.markdown(description, unsafe_allow_html=True)
                 st.markdown(f"<a href='{url}' target='_blank' class='job-url-button'>Apply on LinkedIn</a>", unsafe_allow_html=True)
             
             st.markdown("<hr>", unsafe_allow_html=True)

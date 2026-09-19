@@ -644,7 +644,7 @@ class ResumeBuilder:
             contact_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
             # Add name at the top
-            name_paragraph = doc.add_paragraph('✨ ' + data['personal_info']['full_name'] + ' ✨')
+            name_paragraph = doc.add_paragraph(' ' + data['personal_info']['full_name'] + ' ')
             name_paragraph.style = name_style
 
             # Add role/title if available
@@ -688,7 +688,7 @@ class ResumeBuilder:
                     p.style = normal_style
                     p.paragraph_format.left_indent = Inches(0.2)
                     
-                    p.add_run(f"🚀 {exp['position']}").bold = True
+                    p.add_run(f" {exp['position']}").bold = True
                     p.add_run(f"\n🏢 {exp['company']}")
                     p.add_run(f"\n📅 {exp['start_date']} - {exp['end_date']}")
                     
@@ -701,7 +701,7 @@ class ResumeBuilder:
                         resp_para = doc.add_paragraph()
                         resp_para.style = normal_style
                         resp_para.paragraph_format.left_indent = Inches(0.4)
-                        resp_para.add_run('🎯 Key Achievements:').bold = True
+                        resp_para.add_run(' Key Achievements:').bold = True
                         for resp in self._format_list_items(exp['responsibilities']):
                             bullet = doc.add_paragraph()
                             bullet.style = normal_style
@@ -717,7 +717,7 @@ class ResumeBuilder:
                     p.style = normal_style
                     p.paragraph_format.left_indent = Inches(0.2)
                     
-                    p.add_run(f"✨ {proj['name']}").bold = True
+                    p.add_run(f" {proj['name']}").bold = True
                     if proj.get('technologies'):
                         p.add_run(f"\n💻 Technologies: {proj['technologies']}")
                     
@@ -730,7 +730,7 @@ class ResumeBuilder:
                         resp_para = doc.add_paragraph()
                         resp_para.style = normal_style
                         resp_para.paragraph_format.left_indent = Inches(0.4)
-                        resp_para.add_run('🎯 Key Features:').bold = True
+                        resp_para.add_run(' Key Features:').bold = True
                         for resp in self._format_list_items(proj['responsibilities']):
                             bullet = doc.add_paragraph()
                             bullet.style = normal_style
@@ -747,15 +747,15 @@ class ResumeBuilder:
                     p.paragraph_format.left_indent = Inches(0.2)
                     
                     p.add_run(f"📚 {edu['school']}").bold = True
-                    p.add_run(f"\n🎯 {edu['degree']} in {edu['field']}")
+                    p.add_run(f"\n {edu['degree']} in {edu['field']}")
                     p.add_run(f"\n📅 Graduation: {edu['graduation_date']}")
                     if edu.get('gpa'):
-                        p.add_run(f" | 📊 GPA: {edu['gpa']}")
+                        p.add_run(f" |  GPA: {edu['gpa']}")
                     p.paragraph_format.space_after = Pt(8)
 
             # Skills Section
             if data.get('skills'):
-                doc.add_paragraph('⭐ SKILLS', style=section_style)
+                doc.add_paragraph(' SKILLS', style=section_style)
                 skills = data['skills']
                 
                 def add_skill_category(category_name, title, icon):

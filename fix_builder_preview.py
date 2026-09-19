@@ -13,7 +13,7 @@ def fix_builder_preview():
         selected_template = st.selectbox("Select Resume Template", templates)
         form_data['template'] = selected_template
         
-        st.markdown("### Template Preview")
+        st.markdown("### Template Preview", unsafe_allow_html=True)
         preview_data = app.builder.generate_preview(selected_template, form_data)
         if preview_data and isinstance(preview_data, dict):
             import streamlit.components.v1 as components

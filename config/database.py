@@ -1,10 +1,22 @@
 import sqlite3
 from datetime import datetime
+import threading
+
+# Thread-local storage for database connections
+_local = threading.local()
 
 def get_database_connection():
-    """Create and return a database connection"""
-    conn = sqlite3.connect('resume_data.db')
-    return conn
+    """Create and return a database connection (thread-safe)"""
+    if not hasattr(_local, 'conn'):
+        _local.conn = sqlite3.connect('resume_data.db', timeout=20.0, check_same_thread=False)
+    
+    # Verify connection is still open
+    try:
+        _local.conn.cursor()
+    except sqlite3.ProgrammingError:
+        _local.conn = sqlite3.connect('resume_data.db', timeout=20.0, check_same_thread=False)
+        
+    return _local.conn
 
 def init_database():
     """Initialize database tables"""
@@ -83,7 +95,7 @@ def init_database():
     ''')
     
     conn.commit()
-    conn.close()
+    pass
 
 def save_resume_data(data):
     """Save resume data to database"""
@@ -123,7 +135,7 @@ def save_resume_data(data):
         conn.rollback()
         return None
     finally:
-        conn.close()
+        pass
 
 def save_analysis_data(resume_id, analysis):
     """Save resume analysis data"""
@@ -152,7 +164,7 @@ def save_analysis_data(resume_id, analysis):
         print(f"Error saving analysis data: {str(e)}")
         conn.rollback()
     finally:
-        conn.close()
+        pass
 
 def get_resume_stats():
     """Get statistics about resumes"""
@@ -186,7 +198,7 @@ def get_resume_stats():
         print(f"Error getting resume stats: {str(e)}")
         return None
     finally:
-        conn.close()
+        pass
 
 def log_admin_action(admin_email, action):
     """Log admin login/logout actions"""
@@ -202,7 +214,7 @@ def log_admin_action(admin_email, action):
     except Exception as e:
         print(f"Error logging admin action: {str(e)}")
     finally:
-        conn.close()
+        pass
 
 def get_admin_logs():
     """Get all admin login/logout logs"""
@@ -220,7 +232,7 @@ def get_admin_logs():
         print(f"Error getting admin logs: {str(e)}")
         return []
     finally:
-        conn.close()
+        pass
 
 def get_all_resume_data():
     """Get all resume data for admin dashboard"""
@@ -254,7 +266,7 @@ def get_all_resume_data():
         print(f"Error getting resume data: {str(e)}")
         return []
     finally:
-        conn.close()
+        pass
 
 def verify_admin(email, password):
     """Verify admin credentials"""
@@ -269,7 +281,7 @@ def verify_admin(email, password):
         print(f"Error verifying admin: {str(e)}")
         return False
     finally:
-        conn.close()
+        pass
 
 def add_admin(email, password):
     """Add a new admin"""
@@ -284,7 +296,7 @@ def add_admin(email, password):
         print(f"Error adding admin: {str(e)}")
         return False
     finally:
-        conn.close()
+        pass
 
 def save_ai_analysis_data(resume_id, analysis_data):
     """Save AI analysis data to the database"""
@@ -324,7 +336,7 @@ def save_ai_analysis_data(resume_id, analysis_data):
         conn.rollback()
         raise
     finally:
-        conn.close()
+        pass
 
 def get_ai_analysis_stats():
     """Get statistics about AI analyzer usage"""
@@ -387,7 +399,7 @@ def get_ai_analysis_stats():
             "top_job_roles": []
         }
     finally:
-        conn.close()
+        pass
 
 def get_detailed_ai_analysis_stats():
     """Get detailed statistics about AI analyzer usage including daily trends"""
@@ -503,7 +515,7 @@ def get_detailed_ai_analysis_stats():
             "recent_analyses": []
         }
     finally:
-        conn.close()
+        pass
 
 def reset_ai_analysis_stats():
     """Reset AI analysis statistics by truncating the ai_analysis table"""
@@ -529,4 +541,4 @@ def reset_ai_analysis_stats():
         print(f"Error resetting AI analysis stats: {e}")
         return {"success": False, "message": f"Error resetting AI analysis statistics: {str(e)}"}
     finally:
-        conn.close()
+        pass
