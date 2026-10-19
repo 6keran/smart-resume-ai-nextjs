@@ -25,7 +25,7 @@ export default async function UserCertificatesPage() {
     redirect('/login?from=/dashboard/certificates');
   }
 
-  const certificates = getUserCertificates(user.id);
+  const certificates = await getUserCertificates(user.id);
 
   return (
     <div className="space-y-6 animate-fade-in">

@@ -18,7 +18,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ message: 'Feedback ID and status are required' }, { status: 400 });
     }
 
-    const updated = updateFeedbackStatus(id, status);
+    const updated = await updateFeedbackStatus(id, status);
     if (!updated) {
       return NextResponse.json({ message: 'Feedback item not found' }, { status: 404 });
     }

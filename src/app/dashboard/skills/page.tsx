@@ -24,7 +24,7 @@ export default async function UserSkillsPage() {
     redirect('/login?from=/dashboard/skills');
   }
 
-  const skills = getUserSkillsStatus(user.id);
+  const skills = await getUserSkillsStatus(user.id);
   const verifiedSkills = skills.filter((s) => s.status === 'VERIFIED');
   const unverifiedSkills = skills.filter((s) => s.status !== 'VERIFIED');
 

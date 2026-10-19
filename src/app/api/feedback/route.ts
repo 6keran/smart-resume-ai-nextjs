@@ -16,9 +16,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const user = getUserFromRequest(req);
-    const visitorId = getOrCreateVisitorId(req);
-    const feedbackId = recordFeedbackEvent({
+    const user = await getUserFromRequest(req);
+    const visitorId = await getOrCreateVisitorId(req);
+    const feedbackId = await recordFeedbackEvent({
       visitorId,
       userId: user?.id,
       rating: Number(rating),

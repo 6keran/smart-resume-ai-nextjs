@@ -8,7 +8,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const wantCatalog = url.searchParams.get('catalog') === 'true';
 
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       if (wantCatalog) {
         return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -17,11 +17,11 @@ export async function GET(req: Request) {
     }
 
     if (wantCatalog) {
-      const skills = getUserSkillsStatus(user.id);
+      const skills = await getUserSkillsStatus(user.id);
       return NextResponse.json({ skills });
     }
 
-    const skills = getUserSkills(user.id);
+    const skills = await getUserSkills(user.id);
     return NextResponse.json({ success: true, skills });
   } catch (err) {
     console.error('Error fetching user skills:', err);
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized. Please sign in to save skills.' }, { status: 401 });
     }
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Skill name is required.' }, { status: 400 });
     }
 
-    const skill = addUserSkill(user.id, name.trim(), category, claimDirectly);
+    const skill = await addUserSkill(user.id, name.trim(), category, claimDirectly);
     return NextResponse.json({ success: true, skill });
   } catch (err) {
     console.error('Error adding user skill:', err);
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized. Please sign in to remove skills.' }, { status: 401 });
     }
@@ -74,7 +74,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ message: 'Skill ID or name is required.' }, { status: 400 });
     }
 
-    const result = deleteUserSkill(user.id, skillIdOrName.trim());
+    const result = await deleteUserSkill(user.id, skillIdOrName.trim());
 
     if (!result.success) {
       return NextResponse.json({ message: result.error || 'Skill not found in user profile or unauthorized.' }, { status: 404 });

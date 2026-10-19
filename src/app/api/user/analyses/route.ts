@@ -4,12 +4,12 @@ import { getUserAnalyses } from '@/lib/db';
 
 export async function GET(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const analyses = getUserAnalyses(user.id);
+    const analyses = await getUserAnalyses(user.id);
     return NextResponse.json({ analyses });
   } catch (err) {
     console.error('Error fetching user analyses:', err);

@@ -21,7 +21,7 @@ export default async function CertificatePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const cert = getCertificateByCode(id);
+  const cert = await getCertificateByCode(id);
 
   if (!cert) {
     return (

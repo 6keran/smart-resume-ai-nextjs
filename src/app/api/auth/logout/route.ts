@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     }
 
     if (token) {
-      logoutUser(token);
+      await logoutUser(token);
     }
 
     const response = NextResponse.json({

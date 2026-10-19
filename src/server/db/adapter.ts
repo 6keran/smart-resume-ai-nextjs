@@ -1,8 +1,13 @@
 import 'server-only';
 import path from 'node:path';
 import fs from 'node:fs';
+import dns from 'node:dns';
 import { DatabaseSync } from 'node:sqlite';
 import pg from 'pg';
+
+try {
+  dns.setDefaultResultOrder?.('ipv4first');
+} catch {}
 
 const { Pool, types } = pg;
 
@@ -72,6 +77,10 @@ export function toPostgresSql(sql: string): string {
       output += ' ON CONFLICT DO NOTHING';
     }
   }
+
+  // In PostgreSQL, ROUND(double precision, n) does not exist; AVG() returns double precision.
+  // Cast AVG(...) to numeric so ROUND(numeric, n) executes cleanly.
+  output = output.replace(/ROUND\(\s*AVG\(([^)]+)\)\s*,\s*(\d+)\s*\)/gi, 'ROUND(CAST(AVG($1) AS numeric), $2)');
 
   return output;
 }

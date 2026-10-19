@@ -4,12 +4,12 @@ import { getUserCourses, updateUserCourseProgress } from '@/lib/db';
 
 export async function GET(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const courses = getUserCourses(user.id);
+    const courses = await getUserCourses(user.id);
     return NextResponse.json({ courses });
   } catch (err) {
     console.error('Error fetching courses:', err);
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const progress = updateUserCourseProgress(user.id, courseId, lessonsCompleted);
+    const progress = await updateUserCourseProgress(user.id, courseId, lessonsCompleted);
     return NextResponse.json({
       success: true,
       message: 'Course progress updated.',

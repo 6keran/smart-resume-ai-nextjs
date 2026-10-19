@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { user, sessionToken } = loginUser({
+    const { user, sessionToken } = await loginUser({
       email,
       password,
     });

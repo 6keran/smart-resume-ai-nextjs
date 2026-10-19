@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -65,7 +65,7 @@ export default function AdminProctoringPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionNotice, setActionNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const fetchProctoringData = useCallback(async () => {
+  const fetchProctoringData = async () => {
     try {
       setLoading(true);
       const res = await fetch('/api/admin/proctoring');
@@ -81,13 +81,13 @@ export default function AdminProctoringPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedSession]);
+  };
 
   useEffect(() => {
     fetchProctoringData();
-    const interval = setInterval(fetchProctoringData, 15000);
+    const interval = setInterval(fetchProctoringData, 15000); // 15s auto-refresh
     return () => clearInterval(interval);
-  }, [fetchProctoringData]);
+  }, []);
 
   const handleModerateSession = async (action: 'warn' | 'terminate', assessmentId: string) => {
     try {

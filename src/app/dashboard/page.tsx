@@ -34,7 +34,7 @@ export default async function UserDashboardPage() {
     redirect('/login?from=/dashboard');
   }
 
-  const data = getUserDashboardData(user.id);
+  const data = await getUserDashboardData(user.id);
   const { metrics, resumeProgress, recentApplications, recentAssessments, recentImprovements } = data;
 
   const statCards = [

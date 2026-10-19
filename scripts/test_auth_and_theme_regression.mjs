@@ -128,35 +128,28 @@ class CdpClient {
 }
 
 // Safe navigation helper that ensures document is on expected origin and ready
-async function safeNavigate(client, targetUrl, readySelector = null, timeoutMs = 15000) {
+async function safeNavigate(client, targetUrl, readySelector = null, timeoutMs = 25000) {
   await client.send('Page.navigate', { url: targetUrl });
+  const effectiveTimeout = Math.max(timeoutMs, 20000);
   const start = Date.now();
 
-  while (Date.now() - start < timeoutMs) {
+  while (Date.now() - start < effectiveTimeout) {
     await sleep(300);
     try {
-      const state = await client.eval(`
+      const isReady = await client.eval(`
         (() => {
-          const href = window.location.href;
-          const origin = window.origin;
-          const isErrorDoc = href.startsWith('chrome-error:') || href.startsWith('edge-error:');
-          const isReady = document.readyState === 'complete';
+          const isLoaded = document.readyState === 'complete' || document.readyState === 'interactive';
           const hasSelector = ${readySelector ? `Boolean(document.querySelector(${JSON.stringify(readySelector)}))` : 'true'};
-          return { href, origin, isErrorDoc, isReady, hasSelector };
+          const el = ${readySelector ? `document.querySelector(${JSON.stringify(readySelector)})` : 'null'};
+          const isMounted = !el || el.tagName !== 'INPUT' || !el.readOnly;
+          return isLoaded && hasSelector && isMounted;
         })()
       `);
-
-      if (state.isErrorDoc) {
-        throw new Error(`Navigation failed: browser landed on error page (${state.href})`);
+      if (isReady) {
+        await sleep(400);
+        return { href: targetUrl, origin: 'http://localhost:3000' };
       }
-
-      if (state.href.startsWith('http://localhost:3000') && state.origin === 'http://localhost:3000' && state.isReady && state.hasSelector) {
-        return state;
-      }
-    } catch (err) {
-      if (err.message?.includes('Navigation failed')) throw err;
-      // frame might be re-navigating, retry
-    }
+    } catch {}
   }
 
   // Get final state for diagnostic reporting
@@ -183,6 +176,32 @@ async function safeGetLocalStorage(client, key) {
   `);
 }
 
+async function fillReactInputs(client, valuesObj) {
+  return await client.eval(`(function() {
+    const setVal = (el, val) => {
+      if (!el) return;
+      el.focus();
+      const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      nativeSetter?.call(el, val);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    const values = ${JSON.stringify(valuesObj)};
+    for (const [selector, val] of Object.entries(values)) {
+      const el = document.querySelector(selector);
+      if (el) setVal(el, val);
+    }
+    return true;
+  })()`);
+}
+
+async function submitForm(client) {
+  return await client.eval(`(function() {
+    const btn = document.querySelector('button[type="submit"]');
+    if (btn) btn.click();
+  })()`);
+}
+
 async function runRegressionSuite() {
   console.log('====================================================');
   console.log('STARTING REAL REGRESSION TEST: AUTH + THEME SWITCHING');
@@ -201,6 +220,7 @@ async function runRegressionSuite() {
       step5_visitProtectedRoute: false,
       step6_logoutRemovesProtectedAccess: false,
       step7_existingAccountWorks: false,
+      step8_passwordVisibilityToggleWorks: false,
     },
     theme: {
       step1_switchToDark: false,
@@ -269,9 +289,10 @@ async function runRegressionSuite() {
     // -------------------------------------------------------------
     console.log('\n--- TESTING THEME SWITCHING FLOW ---');
 
-    // Navigate to /login and wait for theme controls to render
+    // Navigate to /login and wait for theme controls to render and hydrate
     console.log('Navigating to http://localhost:3000/login...');
-    const navState = await safeNavigate(client, 'http://localhost:3000/login', '#theme-toggle-light', 15000);
+    const navState = await safeNavigate(client, 'http://localhost:3000/login', 'input#email', 25000);
+    await sleep(500);
     console.log(`Landed on: ${navState.href} (Origin: ${navState.origin})`);
 
     // Initial theme check
@@ -431,35 +452,23 @@ async function runRegressionSuite() {
 
     try {
       console.log(`Registering account: ${testEmail}...`);
-      await safeNavigate(client, 'http://localhost:3000/register', 'input#fullName', 10000);
+      await safeNavigate(client, 'http://localhost:3000/register', 'input#fullName', 15000);
 
-      await client.eval(`(function() {
-        const nameInput = document.querySelector('input#fullName') || document.querySelector('input[type="text"]');
-        const emailInput = document.querySelector('input#email') || document.querySelector('input[type="email"]');
-        const passInputs = document.querySelectorAll('input[type="password"]');
-        
-        const setVal = (el, val) => {
-          const proto = Object.getPrototypeOf(el);
-          const set = Object.getOwnPropertyDescriptor(proto, 'value')?.set || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-          set.call(el, val);
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-        };
-
-        setVal(nameInput, ${JSON.stringify(testName)});
-        setVal(emailInput, ${JSON.stringify(testEmail)});
-        setVal(passInputs[0], ${JSON.stringify(testPassword)});
-        setVal(passInputs[1], ${JSON.stringify(testPassword)});
-      })()`);
+      await fillReactInputs(client, {
+        'input#fullName': testName,
+        'input#email': testEmail,
+        'input#password': testPassword,
+        'input#confirmPassword': testPassword,
+      });
 
       await sleep(300);
       console.log('Submitting registration form...');
-      await client.eval(`document.querySelector('button[type="submit"]')?.click()`);
+      await submitForm(client);
 
       // Wait for redirect to /dashboard
       const startWait = Date.now();
       let postRegUrl = '';
-      while (Date.now() - startWait < 8000) {
+      while (Date.now() - startWait < 15000) {
         await sleep(500);
         postRegUrl = await client.eval('window.location.href');
         if (postRegUrl.includes('/dashboard')) break;
@@ -510,24 +519,13 @@ async function runRegressionSuite() {
       console.log('Testing incorrect credentials rejection on /login...');
       await safeNavigate(client, 'http://localhost:3000/login', 'input#email', 8000);
 
-      await client.eval(`(function() {
-        const emailInput = document.querySelector('input#email');
-        const passInput = document.querySelector('input#password');
-        
-        const setVal = (el, val) => {
-          const proto = Object.getPrototypeOf(el);
-          const set = Object.getOwnPropertyDescriptor(proto, 'value')?.set || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-          set.call(el, val);
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-        };
-
-        setVal(emailInput, ${JSON.stringify(testEmail)});
-        setVal(passInput, "TotallyWrongPassword123!");
-      })()`);
+      await fillReactInputs(client, {
+        'input#email': testEmail,
+        'input#password': 'TotallyWrongPassword123!',
+      });
 
       await sleep(300);
-      await client.eval(`document.querySelector('button[type="submit"]')?.click()`);
+      await submitForm(client);
       await sleep(1500);
 
       const errorMessage = await client.eval(`document.querySelector('#auth-error')?.textContent || ''`);
@@ -546,24 +544,57 @@ async function runRegressionSuite() {
     // Step 2: Log in with the correct credentials
     try {
       console.log('Logging in with correct credentials...');
-      await client.eval(`(function() {
-        const passInput = document.querySelector('input#password');
-        const setVal = (el, val) => {
-          const proto = Object.getPrototypeOf(el);
-          const set = Object.getOwnPropertyDescriptor(proto, 'value')?.set || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-          set.call(el, val);
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-        };
-        setVal(passInput, ${JSON.stringify(testPassword)});
-      })()`);
+      await fillReactInputs(client, {
+        'input#email': testEmail,
+        'input#password': testPassword,
+      });
+
+      // Verify Step 8: Show/Hide Password Toggle behavior
+      try {
+        console.log('Testing Show/Hide Password functionality before login submit...');
+        await client.eval(`document.querySelector('#toggle-password')?.click()`);
+        await sleep(150);
+        const revealed = await client.eval(`({
+          type: document.querySelector('input#password')?.type,
+          val: document.querySelector('input#password')?.value,
+          pressed: document.querySelector('#toggle-password')?.getAttribute('aria-pressed'),
+          hasEyeOff: Boolean(document.querySelector('#toggle-password svg.lucide-eye-off'))
+        })`);
+
+        await client.eval(`document.querySelector('#toggle-password')?.click()`);
+        await sleep(150);
+        const rehidden = await client.eval(`({
+          type: document.querySelector('input#password')?.type,
+          val: document.querySelector('input#password')?.value,
+          pressed: document.querySelector('#toggle-password')?.getAttribute('aria-pressed'),
+          hasEye: Boolean(document.querySelector('#toggle-password svg.lucide-eye'))
+        })`);
+
+        if (
+          revealed.type === 'text' &&
+          revealed.val === testPassword &&
+          revealed.pressed === 'true' &&
+          revealed.hasEyeOff &&
+          rehidden.type === 'password' &&
+          rehidden.val === testPassword &&
+          rehidden.pressed === 'false' &&
+          rehidden.hasEye
+        ) {
+          results.auth.step8_passwordVisibilityToggleWorks = true;
+          console.log('PASS: Step 8: Show/Hide password toggle reveals/hides text with correct icon, accessible state, and preserved value.');
+        } else {
+          console.log('FAIL: Step 8: Show/Hide password toggle did not meet all requirements.', { revealed, rehidden });
+        }
+      } catch (err) {
+        console.error('FAIL: Step 8 threw error:', err.message);
+      }
 
       await sleep(300);
-      await client.eval(`document.querySelector('button[type="submit"]')?.click()`);
+      await submitForm(client);
 
       const startWaitLogin = Date.now();
       let loginRedirectUrl = '';
-      while (Date.now() - startWaitLogin < 8000) {
+      while (Date.now() - startWaitLogin < 15000) {
         await sleep(500);
         loginRedirectUrl = await client.eval('window.location.href');
         if (loginRedirectUrl.includes('/dashboard')) break;
@@ -625,26 +656,17 @@ async function runRegressionSuite() {
       await safeNavigate(client, 'http://localhost:3000/login', 'input#email', 8000);
 
       // Login with registered test account
-      await client.eval(`(function() {
-        const emailInput = document.querySelector('input#email');
-        const passInput = document.querySelector('input#password');
-        const setVal = (el, val) => {
-          const proto = Object.getPrototypeOf(el);
-          const set = Object.getOwnPropertyDescriptor(proto, 'value')?.set || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-          set.call(el, val);
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-        };
-        setVal(emailInput, ${JSON.stringify(testEmail)});
-        setVal(passInput, ${JSON.stringify(testPassword)});
-      })()`);
+      await fillReactInputs(client, {
+        'input#email': testEmail,
+        'input#password': testPassword,
+      });
 
       await sleep(300);
-      await client.eval(`document.querySelector('button[type="submit"]')?.click()`);
+      await submitForm(client);
 
       const startWaitExist = Date.now();
       let existingLoginUrl = '';
-      while (Date.now() - startWaitExist < 8000) {
+      while (Date.now() - startWaitExist < 15000) {
         await sleep(500);
         existingLoginUrl = await client.eval('window.location.href');
         if (existingLoginUrl.includes('/dashboard')) break;

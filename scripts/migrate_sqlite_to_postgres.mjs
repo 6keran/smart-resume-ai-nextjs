@@ -355,7 +355,7 @@ const TABLE_SCHEMAS = [
   },
   {
     name: 'user_skills',
-    conflictKey: 'user_id, skill_name',
+    conflictKey: 'id',
     sql: `
       CREATE TABLE IF NOT EXISTS user_skills (
         id TEXT PRIMARY KEY,
@@ -510,20 +510,25 @@ async function runMigration() {
         continue;
       }
 
-      // Insert rows into PostgreSQL
+      // Insert rows into PostgreSQL in chunks for high performance and resilience
       const columns = Object.keys(sqliteRows[0]);
       const colList = columns.map(c => `"${c}"`).join(', ');
-      const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
       const conflictClause = `ON CONFLICT (${t.conflictKey}) DO NOTHING`;
-      const insertSql = `INSERT INTO "${t.name}" (${colList}) VALUES (${placeholders}) ${conflictClause}`;
+      const chunkSize = 50;
 
-      let insertedCount = 0;
-      for (const row of sqliteRows) {
-        const values = columns.map(c => row[c]);
-        const res = await client.query(insertSql, values);
-        if (res.rowCount && res.rowCount > 0) {
-          insertedCount++;
-        }
+      for (let i = 0; i < sqliteRows.length; i += chunkSize) {
+        const chunk = sqliteRows.slice(i, i + chunkSize);
+        const rowPlaceholders = [];
+        const values = [];
+
+        chunk.forEach((row, rowIdx) => {
+          const rowParams = columns.map((_, colIdx) => `$${rowIdx * columns.length + colIdx + 1}`);
+          rowPlaceholders.push(`(${rowParams.join(', ')})`);
+          columns.forEach(c => values.push(row[c]));
+        });
+
+        const chunkSql = `INSERT INTO "${t.name}" (${colList}) VALUES ${rowPlaceholders.join(', ')} ${conflictClause}`;
+        await client.query(chunkSql, values);
       }
 
       // Verify row count in target database

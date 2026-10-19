@@ -7,7 +7,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized. Please sign in to remove skills.' }, { status: 401 });
     }
@@ -17,7 +17,7 @@ export async function DELETE(
       return NextResponse.json({ message: 'Skill ID is required.' }, { status: 400 });
     }
 
-    const result = deleteUserSkill(user.id, decodeURIComponent(id));
+    const result = await deleteUserSkill(user.id, decodeURIComponent(id));
     if (!result.success) {
       return NextResponse.json({ message: result.error || 'Skill not found in user profile or unauthorized.' }, { status: 404 });
     }

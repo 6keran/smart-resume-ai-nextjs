@@ -34,9 +34,9 @@ export async function GET(req: Request) {
 
     // Record job search event in database
     try {
-      const user = getUserFromRequest(req);
-      const visitorId = getOrCreateVisitorId(req);
-      recordJobSearchEvent({
+      const user = await getUserFromRequest(req);
+      const visitorId = await getOrCreateVisitorId(req);
+      await recordJobSearchEvent({
         visitorId,
         userId: user?.id,
         query: params.keywords || (params.resumeSkills ? params.resumeSkills.join(', ') : 'All Opportunities'),
@@ -87,9 +87,9 @@ export async function POST(req: Request) {
 
     // Record job search event in database
     try {
-      const user = getUserFromRequest(req);
-      const visitorId = getOrCreateVisitorId(req);
-      recordJobSearchEvent({
+      const user = await getUserFromRequest(req);
+      const visitorId = await getOrCreateVisitorId(req);
+      await recordJobSearchEvent({
         visitorId,
         userId: user?.id,
         query: params.keywords || (params.resumeSkills ? params.resumeSkills.join(', ') : 'All Opportunities'),

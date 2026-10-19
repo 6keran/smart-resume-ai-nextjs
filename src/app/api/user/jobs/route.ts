@@ -4,12 +4,12 @@ import { getUserJobMatches } from '@/lib/db';
 
 export async function GET(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const matches = getUserJobMatches(user.id);
+    const matches = await getUserJobMatches(user.id);
     return NextResponse.json({ matches });
   } catch (err) {
     console.error('Error fetching job matches:', err);

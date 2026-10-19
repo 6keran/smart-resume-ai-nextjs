@@ -11,8 +11,8 @@ export async function GET() {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const stats = getRealAdminStats();
-    const details = getDetailedAnalytics();
+    const stats = await getRealAdminStats();
+    const details = await getDetailedAnalytics();
 
     return NextResponse.json({
       stats,

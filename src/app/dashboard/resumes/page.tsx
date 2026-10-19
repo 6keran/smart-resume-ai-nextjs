@@ -16,7 +16,7 @@ export default async function UserResumesPage() {
     redirect('/login?from=/dashboard/resumes');
   }
 
-  const resumes = getUserResumes(user.id);
+  const resumes = await getUserResumes(user.id);
 
   return (
     <div className="space-y-6 animate-fade-in">

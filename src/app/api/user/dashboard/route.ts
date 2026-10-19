@@ -4,12 +4,12 @@ import { getUserDashboardData } from '@/lib/db';
 
 export async function GET(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const data = getUserDashboardData(user.id);
+    const data = await getUserDashboardData(user.id);
     return NextResponse.json({
       user: {
         id: user.id,

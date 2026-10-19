@@ -22,7 +22,7 @@ export async function GET() {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const summary = getProctoringSummary();
+    const summary = await getProctoringSummary();
     return NextResponse.json(summary);
   } catch (err) {
     console.error('API /api/admin/proctoring GET error:', err);
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
         WHERE id = ?
       `).run(assessmentId);
 
-      recordProctoringEvent(
+      await recordProctoringEvent(
         assessmentId,
         'ADMIN_TERMINATED',
         'violation',
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     }
 
     if (action === 'warn') {
-      recordProctoringEvent(
+      await recordProctoringEvent(
         assessmentId,
         'ADMIN_WARNING_ISSUED',
         'warning',

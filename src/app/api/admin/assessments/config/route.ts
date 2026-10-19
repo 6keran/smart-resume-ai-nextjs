@@ -19,7 +19,7 @@ export async function GET() {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const configs = getAssessmentConfigs();
+    const configs = await getAssessmentConfigs();
     return NextResponse.json({ configs });
   } catch (err) {
     console.error('API /api/admin/assessments/config GET error:', err);
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'skillSlug is required.' }, { status: 400 });
     }
 
-    const success = updateAssessmentConfig(skillSlug, {
+    const success = await updateAssessmentConfig(skillSlug, {
       questionsCount: questionsCount !== undefined ? Number(questionsCount) : undefined,
       passPercentage: passPercentage !== undefined ? Number(passPercentage) : undefined,
       timeLimitMinutes: timeLimitMinutes !== undefined ? Number(timeLimitMinutes) : undefined,

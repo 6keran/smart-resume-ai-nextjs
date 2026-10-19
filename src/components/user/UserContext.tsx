@@ -70,7 +70,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       console.error('Error logging out:', err);
     } finally {
       setUser(null);
-      router.replace('/login');
+      window.location.href = '/login';
     }
   };
 

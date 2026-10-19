@@ -3,7 +3,7 @@ import { getRealAdminStats } from '@/lib/db';
 
 export async function GET() {
   try {
-    const stats = getRealAdminStats();
+    const stats = await getRealAdminStats();
     return NextResponse.json(stats);
   } catch (err) {
     console.error('API /api/dashboard error:', err);

@@ -14,7 +14,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const admin = getAdminByEmail(email);
+    const admin = await getAdminByEmail(email);
 
     if (!admin || !admin.is_active) {
       // Do not reveal whether user exists
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
       );
     }
 
-    recordAdminLogin(admin.id);
+    await recordAdminLogin(admin.id);
 
     const token = createSessionToken({
       id: admin.id,

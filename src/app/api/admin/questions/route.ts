@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     const id = searchParams.get('id');
 
     if (id) {
-      const question = getQuestionById(id);
+      const question = await getQuestionById(id);
       if (!question) {
         return NextResponse.json({ message: 'Question not found' }, { status: 404 });
       }
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '15', 10);
 
-    const result = getAdminQuestions({
+    const result = await getAdminQuestions({
       skill,
       difficulty,
       questionType,
@@ -109,7 +109,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const newId = createQuestion({
+    const newId = await createQuestion({
       skill: skill.trim(),
       question_text: question_text.trim(),
       question_type,
@@ -149,7 +149,7 @@ export async function PUT(req: Request) {
       );
     }
 
-    const updated = updateQuestion(id, data);
+    const updated = await updateQuestion(id, data);
     if (!updated) {
       return NextResponse.json({ message: 'Question not found or update failed.' }, { status: 404 });
     }
@@ -175,7 +175,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ message: 'id and is_active boolean are required.' }, { status: 400 });
     }
 
-    const toggled = toggleQuestionStatus(id, is_active);
+    const toggled = await toggleQuestionStatus(id, is_active);
     if (!toggled) {
       return NextResponse.json({ message: 'Question not found.' }, { status: 404 });
     }
@@ -201,7 +201,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ message: 'Question ID is required.' }, { status: 400 });
     }
 
-    const deleted = softDeleteQuestion(id);
+    const deleted = await softDeleteQuestion(id);
     if (!deleted) {
       return NextResponse.json({ message: 'Question not found.' }, { status: 404 });
     }

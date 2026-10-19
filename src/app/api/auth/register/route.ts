@@ -44,10 +44,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const visitorId = getOrCreateVisitorId(req);
+    const visitorId = await getOrCreateVisitorId(req);
 
     // 2. Register user in DB
-    const { user, sessionToken } = registerUser({
+    const { user, sessionToken } = await registerUser({
       name: fullName.trim(),
       email: email.trim(),
       password,

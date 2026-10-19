@@ -20,7 +20,7 @@ export async function GET() {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const skills = getSkillsCatalogWithMetrics();
+    const skills = await getSkillsCatalogWithMetrics();
     return NextResponse.json({ skills });
   } catch (err) {
     console.error('API /api/admin/skills GET error:', err);
@@ -42,7 +42,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ message: 'id and is_active are required.' }, { status: 400 });
     }
 
-    const success = toggleSkillStatus(id, is_active);
+    const success = await toggleSkillStatus(id, is_active);
     if (!success) {
       return NextResponse.json({ message: 'Skill not found.' }, { status: 404 });
     }
@@ -68,7 +68,7 @@ export async function PUT(req: Request) {
       return NextResponse.json({ message: 'Skill ID is required.' }, { status: 400 });
     }
 
-    const success = updateSkill(id, { name, category, description });
+    const success = await updateSkill(id, { name, category, description });
     if (!success) {
       return NextResponse.json({ message: 'Skill not found.' }, { status: 404 });
     }

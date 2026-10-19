@@ -7,10 +7,10 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const skill = (body.skill as string) || 'Python';
-    const user = getUserFromRequest(req);
-    const visitorId = getOrCreateVisitorId(req);
+    const user = await getUserFromRequest(req);
+    const visitorId = await getOrCreateVisitorId(req);
 
-    const result = startAssessmentAttempt(skill, visitorId, user?.id);
+    const result = await startAssessmentAttempt(skill, visitorId, user?.id);
 
     if (!result.success) {
       return NextResponse.json(

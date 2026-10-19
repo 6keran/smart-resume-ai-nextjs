@@ -24,7 +24,7 @@ export default async function UserAssessmentsPage() {
     redirect('/login?from=/dashboard/assessments');
   }
 
-  const assessments = getUserAssessments(user.id);
+  const assessments = await getUserAssessments(user.id);
 
   return (
     <div className="space-y-6 animate-fade-in">

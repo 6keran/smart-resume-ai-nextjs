@@ -24,7 +24,7 @@ export default async function UserImprovementsPage() {
     redirect('/login?from=/dashboard/improvements');
   }
 
-  const improvements = getUserImprovements(user.id);
+  const improvements = await getUserImprovements(user.id);
 
   return (
     <div className="space-y-6 animate-fade-in">

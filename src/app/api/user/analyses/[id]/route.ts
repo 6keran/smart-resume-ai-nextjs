@@ -7,13 +7,13 @@ export async function GET(
   props: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await props.params;
-    const analysis = getUserSingleAnalysis(user.id, id);
+    const analysis = await getUserSingleAnalysis(user.id, id);
 
     if (!analysis) {
       return NextResponse.json(

@@ -18,9 +18,9 @@ export async function POST(req: Request) {
 
     // Persist to database
     try {
-      const user = getUserFromRequest(req);
-      const visitorId = getOrCreateVisitorId(req);
-      recordJobMatchEvent({
+      const user = await getUserFromRequest(req);
+      const visitorId = await getOrCreateVisitorId(req);
+      await recordJobMatchEvent({
         visitorId,
         userId: user?.id,
         jobTitle: jobTitle || 'Target Role',

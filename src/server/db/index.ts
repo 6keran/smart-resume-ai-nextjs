@@ -678,19 +678,19 @@ function ensureSeedCourses(db: DatabaseClient) {
 // REAL AUDIT LOG SYSTEM
 // ==========================================
 
-export function logAuditEvent(data: {
+export async function logAuditEvent(data: {
   eventType: string;
   actorType?: 'USER' | 'VISITOR' | 'ADMIN' | 'SYSTEM';
   actorId?: string;
   description: string;
   metadata?: Record<string, any>;
-}): string {
+}): Promise<string> {
   const db = getDb();
   const id = `aud_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
 
   try {
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO audit_events (id, event_type, actor_type, actor_id, description, metadata_json, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -729,9 +729,9 @@ export function formatAuditEventTitle(eventType: string): string {
   }
 }
 
-export function getRealAuditEvents(limit = 20) {
+export async function getRealAuditEvents(limit = 20) {
   const db = getDb();
-  const rows = db.prepare(`
+  const rows = await db.prepare(`
     SELECT id, event_type, actor_type, actor_id, description, metadata_json, created_at
     FROM audit_events
     ORDER BY created_at DESC
@@ -774,26 +774,26 @@ export interface UserProfile {
   lastActiveAt: string;
 }
 
-export function getUserNameById(userId: string | null | undefined): string | null {
+export async function getUserNameById(userId: string | null | undefined): Promise<string | null> {
   if (!userId) return null;
   const db = getDb();
   try {
-    const row = db.prepare('SELECT name FROM users WHERE id = ?').get(userId) as { name: string } | undefined;
+    const row = await db.prepare('SELECT name FROM users WHERE id = ?').get(userId) as { name: string } | undefined;
     return row?.name || null;
   } catch {
     return null;
   }
 }
 
-export function registerUser(data: {
+export async function registerUser(data: {
   name: string;
   email: string;
   password: string;
   visitorId?: string | null;
-}): {
+}): Promise<{
   user: UserProfile;
   sessionToken: string;
-} {
+}> {
   const db = getDb();
   const trimmedName = (data.name || '').trim();
   if (!trimmedName || trimmedName.length < 2) {
@@ -813,7 +813,7 @@ export function registerUser(data: {
     throw new Error('Password must be at least 6 characters long.');
   }
 
-  const existing = db.prepare('SELECT id, email, password_hash, role, is_active, created_at FROM users WHERE LOWER(email) = ?').get(trimmedEmail) as any;
+  const existing = (await db.prepare('SELECT id, email, password_hash, role, is_active, created_at FROM users WHERE LOWER(email) = ?').get(trimmedEmail)) as any;
   const now = new Date().toISOString();
 
   let userId: string;
@@ -828,14 +828,14 @@ export function registerUser(data: {
     const passwordHash = hashPassword(data.password);
     const sessionToken = createSessionToken({ id: userId, email: trimmedEmail, role: 'USER' });
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE users
       SET name = ?, password_hash = ?, role = 'USER', is_active = 1,
           session_token = ?, updated_at = ?, last_login_at = ?, last_active_at = ?
       WHERE id = ?
     `).run(trimmedName, passwordHash, sessionToken, now, now, now, userId);
 
-    logAuditEvent({
+    await logAuditEvent({
       eventType: 'USER_REGISTERED',
       actorType: 'USER',
       actorId: userId,
@@ -863,7 +863,7 @@ export function registerUser(data: {
   const passwordHash = hashPassword(data.password);
   const sessionToken = createSessionToken({ id: userId, email: trimmedEmail, role: 'USER' });
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO users (
       id, name, email, password_hash, role, is_active, session_token,
       created_at, updated_at, last_login_at, last_active_at
@@ -873,48 +873,48 @@ export function registerUser(data: {
   // Link previous visitor activity if any
   if (data.visitorId) {
     try {
-      db.prepare('UPDATE visitors SET user_id = ? WHERE id = ? OR anonymous_id = ?').run(userId, data.visitorId, data.visitorId);
+      await db.prepare('UPDATE visitors SET user_id = ? WHERE id = ? OR anonymous_id = ?').run(userId, data.visitorId, data.visitorId);
     } catch (e: any) {
       console.log('[visitor migration error - visitors]:', e?.message);
     }
     try {
-      db.prepare("UPDATE resumes SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
+      await db.prepare("UPDATE resumes SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
     } catch (e: any) {
       console.log('[visitor migration error - resumes]:', e?.message);
     }
     try {
-      db.prepare("UPDATE resume_analyses SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
+      await db.prepare("UPDATE resume_analyses SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
     } catch (e: any) {
       console.log('[visitor migration error - analyses]:', e?.message);
     }
     try {
-      db.prepare("UPDATE verified_skills SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
+      await db.prepare("UPDATE verified_skills SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
     } catch (e: any) {
       console.log('[visitor migration error - skills]:', e?.message);
     }
     try {
-      db.prepare("UPDATE assessments SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
+      await db.prepare("UPDATE assessments SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
     } catch (e: any) {
       console.log('[visitor migration error - assessments]:', e?.message);
     }
     try {
-      db.prepare("UPDATE job_searches SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
+      await db.prepare("UPDATE job_searches SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
     } catch (e: any) {
       console.log('[visitor migration error - searches]:', e?.message);
     }
     try {
-      db.prepare("UPDATE job_matches SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
+      await db.prepare("UPDATE job_matches SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
     } catch (e: any) {
       console.log('[visitor migration error - matches]:', e?.message);
     }
     try {
-      db.prepare("UPDATE feedback SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
+      await db.prepare("UPDATE feedback SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(userId, data.visitorId);
     } catch (e: any) {
       console.log('[visitor migration error - feedback]:', e?.message);
     }
   }
 
-  logAuditEvent({
+  await logAuditEvent({
     eventType: 'USER_REGISTERED',
     actorType: 'USER',
     actorId: userId,
@@ -938,13 +938,13 @@ export function registerUser(data: {
   };
 }
 
-export function loginUser(data: {
+export async function loginUser(data: {
   email: string;
   password: string;
-}): {
+}): Promise<{
   user: UserProfile;
   sessionToken: string;
-} {
+}> {
   const db = getDb();
   const trimmedEmail = (data.email || '').trim().toLowerCase();
   const trimmedPass = data.password || '';
@@ -953,7 +953,7 @@ export function loginUser(data: {
     throw new Error('Please enter both email and password.');
   }
 
-  const user = db.prepare(`
+  const user = await db.prepare(`
     SELECT id, name, email, password_hash, role, is_active, created_at, updated_at, last_login_at, last_active_at
     FROM users
     WHERE LOWER(email) = ?
@@ -979,14 +979,14 @@ export function loginUser(data: {
     role: user.role || 'USER',
   });
 
-  db.prepare(`
+  await db.prepare(`
     UPDATE users
     SET session_token = ?, last_login_at = ?, last_active_at = ?, updated_at = ?
     WHERE id = ?
   `).run(sessionToken, now, now, now, user.id);
   console.log('[DEBUG loginUser] 9. updated session_token');
 
-  logAuditEvent({
+  await logAuditEvent({
     eventType: 'USER_LOGGED_IN',
     actorType: 'USER',
     actorId: user.id,
@@ -1010,14 +1010,14 @@ export function loginUser(data: {
   };
 }
 
-export function getUserBySession(token: string): UserProfile | null {
+export async function getUserBySession(token: string): Promise<UserProfile | null> {
   if (!token) return null;
   const verified = verifySessionToken(token);
   if (!verified || !verified.sub) return null;
 
   const db = getDb();
   try {
-    const row = db.prepare(`
+    const row = await db.prepare(`
       SELECT id, name, email, role, is_active, session_token, created_at, updated_at, last_login_at, last_active_at
       FROM users
       WHERE id = ?
@@ -1030,7 +1030,7 @@ export function getUserBySession(token: string): UserProfile | null {
 
     const now = new Date().toISOString();
     try {
-      db.prepare('UPDATE users SET last_active_at = ? WHERE id = ?').run(now, row.id);
+      await db.prepare('UPDATE users SET last_active_at = ? WHERE id = ?').run(now, row.id);
     } catch { }
 
     return {
@@ -1050,7 +1050,7 @@ export function getUserBySession(token: string): UserProfile | null {
   }
 }
 
-export function logoutUser(token: string): void {
+export async function logoutUser(token: string): Promise<void> {
   if (!token) return;
   const db = getDb();
   const now = new Date().toISOString();
@@ -1059,13 +1059,13 @@ export function logoutUser(token: string): void {
     const randSuffix = Math.random().toString(36).substring(2, 10);
     const revokedToken = `revoked_${verified?.sub || randSuffix}_${Date.now()}`;
     if (verified && verified.sub) {
-      db.prepare(`
+      await db.prepare(`
         UPDATE users
         SET session_token = ?, updated_at = ?
         WHERE id = ?
       `).run(revokedToken, now, verified.sub);
     } else {
-      db.prepare(`
+      await db.prepare(`
         UPDATE users
         SET session_token = ?, updated_at = ?
         WHERE session_token = ?
@@ -1076,19 +1076,19 @@ export function logoutUser(token: string): void {
   }
 }
 
-export function getUserBySessionToken(sessionToken: string): UserProfile | null {
+export async function getUserBySessionToken(sessionToken: string): Promise<UserProfile | null> {
   if (!sessionToken) return null;
   if (sessionToken.includes('.')) {
-    return getUserBySession(sessionToken);
+    return await getUserBySession(sessionToken);
   }
   const db = getDb();
   try {
-    const row = db.prepare('SELECT id, name, email, role, is_active, created_at, updated_at, last_login_at, last_active_at FROM users WHERE session_token = ?').get(sessionToken) as any;
+    const row = await db.prepare('SELECT id, name, email, role, is_active, created_at, updated_at, last_login_at, last_active_at FROM users WHERE session_token = ?').get(sessionToken) as any;
     if (!row || row.is_active === 0) return null;
 
     const now = new Date().toISOString();
     try {
-      db.prepare('UPDATE users SET last_active_at = ? WHERE id = ?').run(now, row.id);
+      await db.prepare('UPDATE users SET last_active_at = ? WHERE id = ?').run(now, row.id);
     } catch { }
 
     return {
@@ -1108,11 +1108,11 @@ export function getUserBySessionToken(sessionToken: string): UserProfile | null 
   }
 }
 
-export function getUserById(id: string): UserProfile | null {
+export async function getUserById(id: string): Promise<UserProfile | null> {
   if (!id) return null;
   const db = getDb();
   try {
-    const row = db.prepare('SELECT id, name, email, role, is_active, created_at, updated_at, last_login_at, last_active_at FROM users WHERE id = ?').get(id) as any;
+    const row = await db.prepare('SELECT id, name, email, role, is_active, created_at, updated_at, last_login_at, last_active_at FROM users WHERE id = ?').get(id) as any;
     if (!row) return null;
     return {
       id: row.id,
@@ -1130,7 +1130,7 @@ export function getUserById(id: string): UserProfile | null {
   }
 }
 
-export function updateUserProfile(userId: string, data: { name: string; email?: string }): UserProfile {
+export async function updateUserProfile(userId: string, data: { name: string; email?: string }): Promise<UserProfile> {
   const db = getDb();
   const trimmedName = (data.name || '').trim();
   if (!trimmedName || trimmedName.length < 2) {
@@ -1140,7 +1140,7 @@ export function updateUserProfile(userId: string, data: { name: string; email?: 
     throw new Error('Name cannot exceed 70 characters.');
   }
 
-  const existingUser = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as any;
+  const existingUser = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as any;
   if (!existingUser) {
     throw new Error('User not found.');
   }
@@ -1152,7 +1152,7 @@ export function updateUserProfile(userId: string, data: { name: string; email?: 
     if (!emailRegex.test(trimmedEmail)) {
       throw new Error('Please enter a valid email address.');
     }
-    const emailCheck = db.prepare('SELECT id FROM users WHERE LOWER(email) = ? AND id != ?').get(trimmedEmail, userId) as any;
+    const emailCheck = (await db.prepare('SELECT id FROM users WHERE LOWER(email) = ? AND id != ?').get(trimmedEmail, userId)) as any;
     if (emailCheck) {
       throw new Error('Email address is already in use by another account.');
     }
@@ -1160,7 +1160,7 @@ export function updateUserProfile(userId: string, data: { name: string; email?: 
   }
 
   const now = new Date().toISOString();
-  db.prepare(`
+  await db.prepare(`
     UPDATE users
     SET name = ?, email = ?, updated_at = ?, last_active_at = ?
     WHERE id = ?
@@ -1179,9 +1179,9 @@ export function updateUserProfile(userId: string, data: { name: string; email?: 
   };
 }
 
-export function changeUserPassword(userId: string, currentPass: string, newPass: string): boolean {
+export async function changeUserPassword(userId: string, currentPass: string, newPass: string): Promise<boolean> {
   const db = getDb();
-  const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId) as any;
+  const user = await db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId) as any;
   if (!user || !user.password_hash) {
     throw new Error('User account not found.');
   }
@@ -1196,16 +1196,16 @@ export function changeUserPassword(userId: string, currentPass: string, newPass:
 
   const newHash = hashPassword(newPass);
   const now = new Date().toISOString();
-  db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(newHash, now, userId);
+  await db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(newHash, now, userId);
   return true;
 }
 
-export function createOrUpdateUserProfile(data: {
+export async function createOrUpdateUserProfile(data: {
   name: string;
   email?: string | null;
   sessionToken?: string | null;
   visitorId?: string | null;
-}): { id: string; name: string; email: string | null; sessionToken: string } {
+}): Promise<{ id: string; name: string; email: string | null; sessionToken: string }> {
   const db = getDb();
   const trimmedName = (data.name || '').trim();
   if (!trimmedName || trimmedName.length < 2) {
@@ -1219,11 +1219,11 @@ export function createOrUpdateUserProfile(data: {
   const now = new Date().toISOString();
 
   if (data.sessionToken) {
-    const existing = db.prepare('SELECT id, session_token FROM users WHERE session_token = ?').get(data.sessionToken) as
+    const existing = await db.prepare('SELECT id, session_token FROM users WHERE session_token = ?').get(data.sessionToken) as
       | { id: string; session_token: string }
       | undefined;
     if (existing) {
-      db.prepare(`
+      await db.prepare(`
         UPDATE users
         SET name = ?, email = COALESCE(?, email), updated_at = ?, last_active_at = ?
         WHERE id = ?
@@ -1241,21 +1241,21 @@ export function createOrUpdateUserProfile(data: {
   const id = `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
   const sessionToken = crypto.randomBytes(24).toString('hex');
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO users (id, name, email, session_token, created_at, updated_at, last_active_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(id, trimmedName, trimmedEmail, sessionToken, now, now, now);
 
   if (data.visitorId) {
     try {
-      db.prepare('UPDATE visitors SET user_id = ? WHERE id = ? OR anonymous_id = ?').run(id, data.visitorId, data.visitorId);
-      db.prepare("UPDATE resumes SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
-      db.prepare("UPDATE resume_analyses SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
-      db.prepare("UPDATE verified_skills SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
-      db.prepare("UPDATE assessments SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
-      db.prepare("UPDATE job_searches SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
-      db.prepare("UPDATE job_matches SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
-      db.prepare("UPDATE feedback SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
+      await db.prepare('UPDATE visitors SET user_id = ? WHERE id = ? OR anonymous_id = ?').run(id, data.visitorId, data.visitorId);
+      await db.prepare("UPDATE resumes SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
+      await db.prepare("UPDATE resume_analyses SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
+      await db.prepare("UPDATE verified_skills SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
+      await db.prepare("UPDATE assessments SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
+      await db.prepare("UPDATE job_searches SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
+      await db.prepare("UPDATE job_matches SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
+      await db.prepare("UPDATE feedback SET user_id = ? WHERE visitor_id = ? AND (user_id IS NULL OR user_id = '')").run(id, data.visitorId);
     } catch (e) {
       console.error('Error linking visitor activity to user:', e);
     }
@@ -1273,22 +1273,22 @@ export function createOrUpdateUserProfile(data: {
 // WRITE TRACKING HELPERS (Called by Public APIs)
 // ==========================================
 
-export function trackVisitor(anonymousId: string, userAgent = ''): string {
+export async function trackVisitor(anonymousId: string, userAgent = ''): Promise<string> {
   const db = getDb();
   const now = new Date().toISOString();
 
-  const existing = db.prepare('SELECT id, total_sessions FROM visitors WHERE anonymous_id = ?').get(anonymousId) as
+  const existing = await db.prepare('SELECT id, total_sessions FROM visitors WHERE anonymous_id = ?').get(anonymousId) as
     | { id: string; total_sessions: number }
     | undefined;
 
   if (existing) {
-    db.prepare('UPDATE visitors SET last_seen_at = ?, total_sessions = total_sessions + 1, updated_at = ? WHERE id = ?')
+    await db.prepare('UPDATE visitors SET last_seen_at = ?, total_sessions = total_sessions + 1, updated_at = ? WHERE id = ?')
       .run(now, now, existing.id);
     return existing.id;
   }
 
   const id = `vis_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO visitors (id, anonymous_id, first_seen_at, last_seen_at, total_sessions, user_agent, created_at, updated_at)
     VALUES (?, ?, ?, ?, 1, ?, ?, ?)
   `).run(id, anonymousId, now, now, userAgent.slice(0, 255), now, now);
@@ -1296,20 +1296,20 @@ export function trackVisitor(anonymousId: string, userAgent = ''): string {
   return id;
 }
 
-export function recordResumeUpload(data: {
+export async function recordResumeUpload(data: {
   visitorId?: string;
   userId?: string;
   filename: string;
   fileType: string;
   parsedSuccessfully?: boolean;
-}): string {
+}): Promise<string> {
   const db = getDb();
   const id = `res_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
 
-  const effectiveUserId = data.userId || (data.visitorId ? (db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(data.visitorId, data.visitorId) as any)?.user_id : null);
+  const effectiveUserId = data.userId || (data.visitorId ? (await db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(data.visitorId, data.visitorId) as any)?.user_id : null);
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO resumes (id, visitor_id, user_id, filename, file_type, uploaded_at, parsed_successfully, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
@@ -1326,7 +1326,7 @@ export function recordResumeUpload(data: {
   return id;
 }
 
-export function recordResumeAnalysis(data: {
+export async function recordResumeAnalysis(data: {
   visitorId?: string;
   userId?: string;
   resumeId?: string;
@@ -1345,16 +1345,16 @@ export function recordResumeAnalysis(data: {
     originalText?: string;
     improvedText?: string;
   }>;
-}): string {
+}): Promise<string> {
   const db = getDb();
   const id = `anl_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
 
-  const effectiveUserId = data.userId || (data.visitorId ? (db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(data.visitorId, data.visitorId) as any)?.user_id : null);
-  const userName = getUserNameById(effectiveUserId);
+  const effectiveUserId = data.userId || (data.visitorId ? (await db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(data.visitorId, data.visitorId) as any)?.user_id : null);
+  const userName = await getUserNameById(effectiveUserId);
   const actorName = userName || 'Name not provided';
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO resume_analyses (
       id, visitor_id, user_id, resume_id, file_type, analyzed_at,
       ats_score, keyword_score, formatting_score, section_score,
@@ -1380,14 +1380,14 @@ export function recordResumeAnalysis(data: {
   // Auto-record specific improvements for user dashboard
   if (effectiveUserId && Array.isArray(data.recommendations) && data.recommendations.length > 0) {
     try {
-      const insertImp = db.prepare(`
+      const insertImp = await db.prepare(`
         INSERT INTO resume_improvements (id, user_id, resume_id, category, title, before_text, after_text, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       for (const rec of data.recommendations) {
         if (!rec.title) continue;
         const impId = `imp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        insertImp.run(
+        await insertImp.run(
           impId,
           effectiveUserId,
           data.resumeId || null,
@@ -1404,7 +1404,7 @@ export function recordResumeAnalysis(data: {
   }
 
   // Genuine Audit Log with real user name
-  logAuditEvent({
+  await logAuditEvent({
     eventType: 'RESUME_ANALYZED',
     actorType: effectiveUserId ? 'USER' : 'VISITOR',
     actorId: effectiveUserId || data.visitorId,
@@ -1415,7 +1415,7 @@ export function recordResumeAnalysis(data: {
   return id;
 }
 
-export function recordAssessmentEvent(data: {
+export async function recordAssessmentEvent(data: {
   visitorId?: string;
   userId?: string;
   skill: string;
@@ -1427,16 +1427,16 @@ export function recordAssessmentEvent(data: {
   startedAt?: string;
   completedAt?: string;
   proctoringViolationCount?: number;
-}): string {
+}): Promise<string> {
   const db = getDb();
   const id = `att_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
 
-  const effectiveUserId = data.userId || (data.visitorId ? (db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(data.visitorId, data.visitorId) as any)?.user_id : null);
-  const userName = getUserNameById(effectiveUserId);
+  const effectiveUserId = data.userId || (data.visitorId ? (await db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(data.visitorId, data.visitorId) as any)?.user_id : null);
+  const userName = await getUserNameById(effectiveUserId);
   const actorName = userName || 'Name not provided';
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO assessments (
       id, visitor_id, user_id, skill, score, total_questions,
       passed, status, duration_seconds, started_at, completed_at,
@@ -1461,12 +1461,12 @@ export function recordAssessmentEvent(data: {
   // If passed, record into verified_skills
   if (data.passed) {
     const vsId = `vsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO verified_skills (id, visitor_id, user_id, skill_name, status, assessment_id, verified_at, created_at)
       VALUES (?, ?, ?, ?, 'VERIFIED', ?, ?, ?)
     `).run(vsId, data.visitorId || null, effectiveUserId || null, data.skill, id, now, now);
 
-    logAuditEvent({
+    await logAuditEvent({
       eventType: 'SKILL_VERIFIED',
       actorType: effectiveUserId ? 'USER' : 'VISITOR',
       actorId: effectiveUserId || data.visitorId,
@@ -1475,7 +1475,7 @@ export function recordAssessmentEvent(data: {
     });
   }
 
-  logAuditEvent({
+  await logAuditEvent({
     eventType: 'ASSESSMENT_COMPLETED',
     actorType: effectiveUserId ? 'USER' : 'VISITOR',
     actorId: effectiveUserId || data.visitorId,
@@ -1486,23 +1486,23 @@ export function recordAssessmentEvent(data: {
   return id;
 }
 
-export function recordJobSearchEvent(data: {
+export async function recordJobSearchEvent(data: {
   visitorId?: string;
   userId?: string;
   query: string;
   location?: string;
   provider: string;
   resultsCount: number;
-}): string {
+}): Promise<string> {
   const db = getDb();
   const id = `jsr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
 
-  const effectiveUserId = data.userId || (data.visitorId ? (db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(data.visitorId, data.visitorId) as any)?.user_id : null);
-  const userName = getUserNameById(effectiveUserId);
+  const effectiveUserId = data.userId || (data.visitorId ? (await db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(data.visitorId, data.visitorId) as any)?.user_id : null);
+  const userName = await getUserNameById(effectiveUserId);
   const actorName = userName || 'Name not provided';
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO job_searches (id, visitor_id, user_id, query, location, provider, results_count, searched_at, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
@@ -1517,7 +1517,7 @@ export function recordJobSearchEvent(data: {
     now
   );
 
-  logAuditEvent({
+  await logAuditEvent({
     eventType: 'JOB_SEARCHED',
     actorType: effectiveUserId ? 'USER' : 'VISITOR',
     actorId: effectiveUserId || data.visitorId,
@@ -1528,7 +1528,7 @@ export function recordJobSearchEvent(data: {
   return id;
 }
 
-export function recordJobMatchEvent(data: {
+export async function recordJobMatchEvent(data: {
   visitorId?: string;
   userId?: string;
   resumeId?: string;
@@ -1539,16 +1539,16 @@ export function recordJobMatchEvent(data: {
   matchedSkills?: string[];
   partialSkills?: string[];
   missingSkills?: string[];
-}): string {
+}): Promise<string> {
   const db = getDb();
   const id = `jmt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
 
-  const effectiveUserId = data.userId || (data.visitorId ? (db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(data.visitorId, data.visitorId) as any)?.user_id : null);
-  const userName = getUserNameById(effectiveUserId);
+  const effectiveUserId = data.userId || (data.visitorId ? (await db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(data.visitorId, data.visitorId) as any)?.user_id : null);
+  const userName = await getUserNameById(effectiveUserId);
   const actorName = userName || 'Name not provided';
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO job_matches (
       id, visitor_id, user_id, resume_id, job_id, job_title, company,
       match_score, matched_skills, partial_skills, missing_skills, created_at
@@ -1568,7 +1568,7 @@ export function recordJobMatchEvent(data: {
     now
   );
 
-  logAuditEvent({
+  await logAuditEvent({
     eventType: 'JOB_MATCHED',
     actorType: effectiveUserId ? 'USER' : 'VISITOR',
     actorId: effectiveUserId || data.visitorId,
@@ -1579,23 +1579,23 @@ export function recordJobMatchEvent(data: {
   return id;
 }
 
-export function recordFeedbackEvent(data: {
+export async function recordFeedbackEvent(data: {
   visitorId?: string;
   userId?: string;
   rating: number;
   category: string;
   message: string;
   suggestions?: string;
-}): string {
+}): Promise<string> {
   const db = getDb();
   const id = `fb_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
 
-  const effectiveUserId = data.userId || (data.visitorId ? (db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(data.visitorId, data.visitorId) as any)?.user_id : null);
-  const userName = getUserNameById(effectiveUserId);
+  const effectiveUserId = data.userId || (data.visitorId ? (await db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(data.visitorId, data.visitorId) as any)?.user_id : null);
+  const userName = await getUserNameById(effectiveUserId);
   const actorName = userName || 'Name not provided';
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO feedback (id, visitor_id, user_id, rating, category, message, suggestions, status, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?)
   `).run(
@@ -1609,7 +1609,7 @@ export function recordFeedbackEvent(data: {
     now
   );
 
-  logAuditEvent({
+  await logAuditEvent({
     eventType: 'FEEDBACK_SUBMITTED',
     actorType: effectiveUserId ? 'USER' : 'VISITOR',
     actorId: effectiveUserId || data.visitorId,
@@ -1650,20 +1650,20 @@ export interface RealAdminStats {
   };
 }
 
-export function getRealAdminStats(): RealAdminStats {
+export async function getRealAdminStats(): Promise<RealAdminStats> {
   const db = getDb();
 
-  const visitorsCount = (db.prepare('SELECT COUNT(*) as c FROM visitors').get() as { c: number }).c;
-  const analysesCount = (db.prepare('SELECT COUNT(*) as c FROM resume_analyses').get() as { c: number }).c;
-  const avgAts = (db.prepare('SELECT ROUND(AVG(ats_score), 1) as a FROM resume_analyses').get() as { a: number | null }).a || 0;
-  const verifiedCount = (db.prepare("SELECT COUNT(*) as c FROM verified_skills WHERE status = 'VERIFIED'").get() as { c: number }).c;
-  const assessmentsCount = (db.prepare("SELECT COUNT(*) as c FROM assessments WHERE status IN ('passed', 'completed')").get() as { c: number }).c;
-  const jobSearchesCount = (db.prepare('SELECT COUNT(*) as c FROM job_searches').get() as { c: number }).c;
-  const jobMatchesCount = (db.prepare('SELECT COUNT(*) as c FROM job_matches').get() as { c: number }).c;
-  const feedbackCount = (db.prepare('SELECT COUNT(*) as c FROM feedback').get() as { c: number }).c;
+  const visitorsCount = ((await db.prepare('SELECT COUNT(*) as c FROM visitors').get()) as { c: number }).c;
+  const analysesCount = ((await db.prepare('SELECT COUNT(*) as c FROM resume_analyses').get()) as { c: number }).c;
+  const avgAts = ((await db.prepare('SELECT ROUND(AVG(ats_score), 1) as a FROM resume_analyses').get()) as { a: number | null }).a || 0;
+  const verifiedCount = ((await db.prepare("SELECT COUNT(*) as c FROM verified_skills WHERE status = 'VERIFIED'").get()) as { c: number }).c;
+  const assessmentsCount = ((await db.prepare("SELECT COUNT(*) as c FROM assessments WHERE status IN ('passed', 'completed')").get()) as { c: number }).c;
+  const jobSearchesCount = ((await db.prepare('SELECT COUNT(*) as c FROM job_searches').get()) as { c: number }).c;
+  const jobMatchesCount = ((await db.prepare('SELECT COUNT(*) as c FROM job_matches').get()) as { c: number }).c;
+  const feedbackCount = ((await db.prepare('SELECT COUNT(*) as c FROM feedback').get()) as { c: number }).c;
 
   // Real ATS History: Group by Day (YYYY-MM-DD)
-  const atsHistoryRows = db.prepare(`
+  const atsHistoryRows = await db.prepare(`
     SELECT
       substr(analyzed_at, 1, 10) as date,
       ROUND(AVG(ats_score), 1) as avgScore,
@@ -1676,7 +1676,7 @@ export function getRealAdminStats(): RealAdminStats {
   `).all() as Array<{ date: string; avgScore: number; avgFormatting: number; avgKeywords: number }>;
 
   // Real Skill Mastery: Verified assessment scores
-  const skillMasteryRows = db.prepare(`
+  const skillMasteryRows = await db.prepare(`
     SELECT
       skill,
       COUNT(*) as count,
@@ -1689,7 +1689,7 @@ export function getRealAdminStats(): RealAdminStats {
   `).all() as Array<{ skill: string; count: number; avgScore: number }>;
 
   // Real Audit Log: strictly from audit_events table. If table has no rows, activities is []
-  const auditRows = db.prepare(`
+  const auditRows = await db.prepare(`
     SELECT
       a.id,
       a.event_type,
@@ -1722,7 +1722,7 @@ export function getRealAdminStats(): RealAdminStats {
   }));
 
   // Assessment Question Bank Telemetry
-  const qBankStats = db.prepare(`
+  const qBankStats = await db.prepare(`
     SELECT
       COUNT(*) as total,
       SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active,
@@ -1732,7 +1732,7 @@ export function getRealAdminStats(): RealAdminStats {
     WHERE is_deleted = 0
   `).get() as { total: number; active: number; inactive: number; skillsCovered: number };
 
-  const usersCount = (db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number }).c;
+  const usersCount = ((await db.prepare('SELECT COUNT(*) as c FROM users').get()) as { c: number }).c;
 
   return {
     totalVisitors: usersCount > 0 ? usersCount : visitorsCount,
@@ -1775,24 +1775,24 @@ function formatTimeAgo(dateStr: string): string {
 // SUBPAGE ADMIN QUERIES & MANAGEMENT
 // ==========================================
 
-export function getAdminByEmail(email: string) {
+export async function getAdminByEmail(email: string) {
   const db = getDb();
-  return db
+  return (await db
     .prepare('SELECT id, email, password_hash, role, is_active, last_login_at, created_at FROM admin_users WHERE email = ?')
-    .get(email.trim().toLowerCase()) as
+    .get(email.trim().toLowerCase())) as
     | { id: string; email: string; password_hash: string; role: string; is_active: number; last_login_at: string | null; created_at: string }
     | undefined;
 }
 
-export function recordAdminLogin(id: string) {
+export async function recordAdminLogin(id: string) {
   const db = getDb();
   const now = new Date().toISOString();
-  db.prepare('UPDATE admin_users SET last_login_at = ?, updated_at = ? WHERE id = ?').run(now, now, id);
+  await db.prepare('UPDATE admin_users SET last_login_at = ?, updated_at = ? WHERE id = ?').run(now, now, id);
 }
 
-export function getAdminUsers(limit = 100) {
+export async function getAdminUsers(limit = 100) {
   const db = getDb();
-  return db.prepare(`
+  return await db.prepare(`
     SELECT
       u.id,
       u.name,
@@ -1821,24 +1821,24 @@ export function getAdminUsers(limit = 100) {
   }>;
 }
 
-export function getAdminUserDetail(userId: string) {
+export async function getAdminUserDetail(userId: string) {
   const db = getDb();
-  const user = db.prepare('SELECT id, name, email, created_at, last_active_at FROM users WHERE id = ?').get(userId) as any;
+  const user = await db.prepare('SELECT id, name, email, created_at, last_active_at FROM users WHERE id = ?').get(userId) as any;
   if (!user) return null;
 
-  const resumes = db.prepare('SELECT * FROM resumes WHERE user_id = ? ORDER BY uploaded_at DESC').all(userId);
-  const analyses = db.prepare(`
+  const resumes = await db.prepare('SELECT * FROM resumes WHERE user_id = ? ORDER BY uploaded_at DESC').all(userId);
+  const analyses = await db.prepare(`
     SELECT a.*, r.filename
     FROM resume_analyses a
     LEFT JOIN resumes r ON a.resume_id = r.id
     WHERE a.user_id = ?
     ORDER BY a.analyzed_at DESC
   `).all(userId);
-  const assessments = db.prepare('SELECT * FROM assessments WHERE user_id = ? ORDER BY created_at DESC').all(userId);
-  const verifiedSkills = db.prepare('SELECT * FROM verified_skills WHERE user_id = ? ORDER BY created_at DESC').all(userId);
-  const searches = db.prepare('SELECT * FROM job_searches WHERE user_id = ? ORDER BY searched_at DESC').all(userId);
-  const matches = db.prepare('SELECT * FROM job_matches WHERE user_id = ? ORDER BY created_at DESC').all(userId);
-  const feedbackList = db.prepare('SELECT * FROM feedback WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+  const assessments = await db.prepare('SELECT * FROM assessments WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+  const verifiedSkills = await db.prepare('SELECT * FROM verified_skills WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+  const searches = await db.prepare('SELECT * FROM job_searches WHERE user_id = ? ORDER BY searched_at DESC').all(userId);
+  const matches = await db.prepare('SELECT * FROM job_matches WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+  const feedbackList = await db.prepare('SELECT * FROM feedback WHERE user_id = ? ORDER BY created_at DESC').all(userId);
 
   return {
     user,
@@ -1852,9 +1852,9 @@ export function getAdminUserDetail(userId: string) {
   };
 }
 
-export function getAdminVisitors(limit = 100) {
+export async function getAdminVisitors(limit = 100) {
   const db = getDb();
-  return db.prepare(`
+  return await db.prepare(`
     SELECT
       v.id,
       v.user_id,
@@ -1888,20 +1888,20 @@ export function getAdminVisitors(limit = 100) {
   }>;
 }
 
-export function getVisitorActivity(visitorId: string) {
+export async function getVisitorActivity(visitorId: string) {
   const db = getDb();
-  const visitor = db.prepare('SELECT * FROM visitors WHERE id = ? OR anonymous_id = ? OR user_id = ?').get(visitorId, visitorId, visitorId) as any;
+  const visitor = await db.prepare('SELECT * FROM visitors WHERE id = ? OR anonymous_id = ? OR user_id = ?').get(visitorId, visitorId, visitorId) as any;
   if (!visitor) return null;
 
   const actualId = visitor.id;
   const userId = visitor.user_id;
 
-  const resumes = db.prepare('SELECT * FROM resumes WHERE visitor_id = ? OR user_id = ? ORDER BY uploaded_at DESC').all(actualId, userId || actualId);
-  const analyses = db.prepare('SELECT * FROM resume_analyses WHERE visitor_id = ? OR user_id = ? ORDER BY analyzed_at DESC').all(actualId, userId || actualId);
-  const assessments = db.prepare('SELECT * FROM assessments WHERE visitor_id = ? OR user_id = ? ORDER BY completed_at DESC').all(actualId, userId || actualId);
-  const searches = db.prepare('SELECT * FROM job_searches WHERE visitor_id = ? OR user_id = ? ORDER BY searched_at DESC').all(actualId, userId || actualId);
-  const matches = db.prepare('SELECT * FROM job_matches WHERE visitor_id = ? OR user_id = ? ORDER BY created_at DESC').all(actualId, userId || actualId);
-  const feedbackList = db.prepare('SELECT * FROM feedback WHERE visitor_id = ? OR user_id = ? ORDER BY created_at DESC').all(actualId, userId || actualId);
+  const resumes = await db.prepare('SELECT * FROM resumes WHERE visitor_id = ? OR user_id = ? ORDER BY uploaded_at DESC').all(actualId, userId || actualId);
+  const analyses = await db.prepare('SELECT * FROM resume_analyses WHERE visitor_id = ? OR user_id = ? ORDER BY analyzed_at DESC').all(actualId, userId || actualId);
+  const assessments = await db.prepare('SELECT * FROM assessments WHERE visitor_id = ? OR user_id = ? ORDER BY completed_at DESC').all(actualId, userId || actualId);
+  const searches = await db.prepare('SELECT * FROM job_searches WHERE visitor_id = ? OR user_id = ? ORDER BY searched_at DESC').all(actualId, userId || actualId);
+  const matches = await db.prepare('SELECT * FROM job_matches WHERE visitor_id = ? OR user_id = ? ORDER BY created_at DESC').all(actualId, userId || actualId);
+  const feedbackList = await db.prepare('SELECT * FROM feedback WHERE visitor_id = ? OR user_id = ? ORDER BY created_at DESC').all(actualId, userId || actualId);
 
   return {
     visitor,
@@ -1914,9 +1914,9 @@ export function getVisitorActivity(visitorId: string) {
   };
 }
 
-export function getAdminResumeAnalyses(limit = 100) {
+export async function getAdminResumeAnalyses(limit = 100) {
   const db = getDb();
-  return db.prepare(`
+  return await db.prepare(`
     SELECT
       a.id,
       a.visitor_id,
@@ -1941,9 +1941,9 @@ export function getAdminResumeAnalyses(limit = 100) {
   `).all(limit);
 }
 
-export function getAdminVerifiedSkills(limit = 100) {
+export async function getAdminVerifiedSkills(limit = 100) {
   const db = getDb();
-  return db.prepare(`
+  return await db.prepare(`
     SELECT
       s.id,
       s.visitor_id,
@@ -1964,9 +1964,9 @@ export function getAdminVerifiedSkills(limit = 100) {
   `).all(limit);
 }
 
-export function getAdminAssessments(limit = 100) {
+export async function getAdminAssessments(limit = 100) {
   const db = getDb();
-  return db.prepare(`
+  return await db.prepare(`
     SELECT
       a.id,
       a.visitor_id,
@@ -1989,9 +1989,9 @@ export function getAdminAssessments(limit = 100) {
   `).all(limit);
 }
 
-export function getAdminJobSearches(limit = 100) {
+export async function getAdminJobSearches(limit = 100) {
   const db = getDb();
-  return db.prepare(`
+  return await db.prepare(`
     SELECT
       j.id,
       j.visitor_id,
@@ -2009,9 +2009,9 @@ export function getAdminJobSearches(limit = 100) {
   `).all(limit);
 }
 
-export function getAdminJobMatches(limit = 100) {
+export async function getAdminJobMatches(limit = 100) {
   const db = getDb();
-  return db.prepare(`
+  return await db.prepare(`
     SELECT
       m.id,
       m.visitor_id,
@@ -2033,10 +2033,10 @@ export function getAdminJobMatches(limit = 100) {
   `).all(limit);
 }
 
-export function getAdminFeedback(limit = 100, statusFilter?: string) {
+export async function getAdminFeedback(limit = 100, statusFilter?: string) {
   const db = getDb();
   if (statusFilter && statusFilter !== 'all') {
-    return db.prepare(`
+    return await db.prepare(`
       SELECT
         f.id,
         f.visitor_id,
@@ -2056,7 +2056,7 @@ export function getAdminFeedback(limit = 100, statusFilter?: string) {
     `).all(statusFilter, limit);
   }
 
-  return db.prepare(`
+  return await db.prepare(`
     SELECT
       f.id,
       f.visitor_id,
@@ -2075,23 +2075,23 @@ export function getAdminFeedback(limit = 100, statusFilter?: string) {
   `).all(limit);
 }
 
-export function updateFeedbackStatus(id: string, status: string): boolean {
+export async function updateFeedbackStatus(id: string, status: string): Promise<boolean> {
   const db = getDb();
-  const res = db.prepare('UPDATE feedback SET status = ? WHERE id = ?').run(status, id);
+  const res = await db.prepare('UPDATE feedback SET status = ? WHERE id = ?').run(status, id);
   return res.changes > 0;
 }
 
-export function getDetailedAnalytics() {
+export async function getDetailedAnalytics() {
   const db = getDb();
 
   // Resume Analytics
-  const totalResumes = (db.prepare('SELECT COUNT(*) as c FROM resumes').get() as { c: number }).c;
-  const pdfCount = (db.prepare("SELECT COUNT(*) as c FROM resumes WHERE LOWER(file_type) LIKE '%pdf%'").get() as { c: number }).c;
-  const docxCount = (db.prepare("SELECT COUNT(*) as c FROM resumes WHERE LOWER(file_type) LIKE '%doc%'").get() as { c: number }).c;
-  const successfulAnalyses = (db.prepare("SELECT COUNT(*) as c FROM resume_analyses WHERE analysis_status = 'COMPLETED'").get() as { c: number }).c;
-  const failedAnalyses = (db.prepare("SELECT COUNT(*) as c FROM resume_analyses WHERE analysis_status != 'COMPLETED'").get() as { c: number }).c;
+  const totalResumes = ((await db.prepare('SELECT COUNT(*) as c FROM resumes').get()) as { c: number }).c;
+  const pdfCount = ((await db.prepare("SELECT COUNT(*) as c FROM resumes WHERE LOWER(file_type) LIKE '%pdf%'").get()) as { c: number }).c;
+  const docxCount = ((await db.prepare("SELECT COUNT(*) as c FROM resumes WHERE LOWER(file_type) LIKE '%doc%'").get()) as { c: number }).c;
+  const successfulAnalyses = ((await db.prepare("SELECT COUNT(*) as c FROM resume_analyses WHERE analysis_status = 'COMPLETED'").get()) as { c: number }).c;
+  const failedAnalyses = ((await db.prepare("SELECT COUNT(*) as c FROM resume_analyses WHERE analysis_status != 'COMPLETED'").get()) as { c: number }).c;
 
-  const scoreStats = db.prepare(`
+  const scoreStats = await db.prepare(`
     SELECT
       ROUND(AVG(ats_score), 1) as avgAts,
       ROUND(AVG(keyword_score), 1) as avgKeywords,
@@ -2101,17 +2101,17 @@ export function getDetailedAnalytics() {
   `).get() as { avgAts: number | null; avgKeywords: number | null; avgFormatting: number | null; avgSection: number | null };
 
   // Job Analytics
-  const totalSearches = (db.prepare('SELECT COUNT(*) as c FROM job_searches').get() as { c: number }).c;
+  const totalSearches = ((await db.prepare('SELECT COUNT(*) as c FROM job_searches').get()) as { c: number }).c;
 
   // Searches today (UTC date substring)
   const todayStr = new Date().toISOString().slice(0, 10);
-  const searchesToday = (db.prepare("SELECT COUNT(*) as c FROM job_searches WHERE substr(searched_at, 1, 10) = ?").get(todayStr) as { c: number }).c;
+  const searchesToday = ((await db.prepare("SELECT COUNT(*) as c FROM job_searches WHERE substr(searched_at, 1, 10) = ?").get(todayStr)) as { c: number }).c;
 
   // Searches this week (past 7 days)
   const pastWeekDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const searchesThisWeek = (db.prepare("SELECT COUNT(*) as c FROM job_searches WHERE substr(searched_at, 1, 10) >= ?").get(pastWeekDate) as { c: number }).c;
+  const searchesThisWeek = ((await db.prepare("SELECT COUNT(*) as c FROM job_searches WHERE substr(searched_at, 1, 10) >= ?").get(pastWeekDate)) as { c: number }).c;
 
-  const topJobTitles = db.prepare(`
+  const topJobTitles = await db.prepare(`
     SELECT query as title, COUNT(*) as count
     FROM job_searches
     GROUP BY query
@@ -2119,7 +2119,7 @@ export function getDetailedAnalytics() {
     LIMIT 5
   `).all() as Array<{ title: string; count: number }>;
 
-  const topLocations = db.prepare(`
+  const topLocations = await db.prepare(`
     SELECT location, COUNT(*) as count
     FROM job_searches
     WHERE location IS NOT NULL AND location != ''
@@ -2128,30 +2128,30 @@ export function getDetailedAnalytics() {
     LIMIT 5
   `).all() as Array<{ location: string; count: number }>;
 
-  const providerCounts = db.prepare(`
+  const providerCounts = await db.prepare(`
     SELECT provider, COUNT(*) as count, SUM(results_count) as totalResults
     FROM job_searches
     GROUP BY provider
     ORDER BY count DESC
   `).all() as Array<{ provider: string; count: number; totalResults: number }>;
 
-  const avgJobsReturned = (db.prepare('SELECT ROUND(AVG(results_count), 1) as avg FROM job_searches').get() as { avg: number | null }).avg || 0;
+  const avgJobsReturned = ((await db.prepare('SELECT ROUND(AVG(results_count), 1) as avg FROM job_searches').get()) as { avg: number | null }).avg || 0;
 
   // Assessment Analytics
-  const totalAssessments = (db.prepare('SELECT COUNT(*) as c FROM assessments').get() as { c: number }).c;
-  const completedAssessments = (db.prepare("SELECT COUNT(*) as c FROM assessments WHERE status IN ('passed', 'completed', 'failed')").get() as { c: number }).c;
-  const passedAssessments = (db.prepare('SELECT COUNT(*) as c FROM assessments WHERE passed = 1').get() as { c: number }).c;
-  const failedAssessments = (db.prepare('SELECT COUNT(*) as c FROM assessments WHERE passed = 0').get() as { c: number }).c;
+  const totalAssessments = ((await db.prepare('SELECT COUNT(*) as c FROM assessments').get()) as { c: number }).c;
+  const completedAssessments = ((await db.prepare("SELECT COUNT(*) as c FROM assessments WHERE status IN ('passed', 'completed', 'failed')").get()) as { c: number }).c;
+  const passedAssessments = ((await db.prepare('SELECT COUNT(*) as c FROM assessments WHERE passed = 1').get()) as { c: number }).c;
+  const failedAssessments = ((await db.prepare('SELECT COUNT(*) as c FROM assessments WHERE passed = 0').get()) as { c: number }).c;
   const passRate = completedAssessments > 0 ? Math.round((passedAssessments / completedAssessments) * 100) : 0;
 
-  const assessmentScoreStats = db.prepare(`
+  const assessmentScoreStats = await db.prepare(`
     SELECT
       ROUND(AVG(score * 10), 1) as avgScore,
       ROUND(AVG(duration_seconds), 0) as avgDuration
     FROM assessments
   `).get() as { avgScore: number | null; avgDuration: number | null };
 
-  const topVerifiedSkills = db.prepare(`
+  const topVerifiedSkills = await db.prepare(`
     SELECT skill_name as skill, COUNT(*) as count
     FROM verified_skills
     WHERE status = 'VERIFIED'
@@ -2215,7 +2215,7 @@ export interface AssessmentQuestionRecord {
   updated_at: string;
 }
 
-export function getAdminQuestions(options: {
+export async function getAdminQuestions(options: {
   skill?: string;
   difficulty?: string;
   questionType?: string;
@@ -2223,13 +2223,13 @@ export function getAdminQuestions(options: {
   search?: string;
   page?: number;
   limit?: number;
-}): {
+}): Promise<{
   questions: AssessmentQuestionRecord[];
   total: number;
   page: number;
   limit: number;
   totalPages: number;
-} {
+}> {
   const db = getDb();
   const page = Math.max(1, options.page || 1);
   const limit = Math.max(1, Math.min(100, options.limit || 15));
@@ -2269,11 +2269,11 @@ export function getAdminQuestions(options: {
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  const countRow = db.prepare(`SELECT COUNT(*) as c FROM assessment_questions ${whereClause}`).get(...params) as { c: number };
+  const countRow = await db.prepare(`SELECT COUNT(*) as c FROM assessment_questions ${whereClause}`).get(...params) as { c: number };
   const total = countRow.c;
   const totalPages = Math.ceil(total / limit) || 1;
 
-  const rows = db.prepare(`
+  const rows = await db.prepare(`
     SELECT * FROM assessment_questions
     ${whereClause}
     ORDER BY created_at DESC
@@ -2300,9 +2300,9 @@ export function getAdminQuestions(options: {
   return { questions, total, page, limit, totalPages };
 }
 
-export function getQuestionById(id: string): AssessmentQuestionRecord | null {
+export async function getQuestionById(id: string): Promise<AssessmentQuestionRecord | null> {
   const db = getDb();
-  const r = db.prepare('SELECT * FROM assessment_questions WHERE id = ?').get(id) as any;
+  const r = await db.prepare('SELECT * FROM assessment_questions WHERE id = ?').get(id) as any;
   if (!r) return null;
 
   return {
@@ -2323,7 +2323,7 @@ export function getQuestionById(id: string): AssessmentQuestionRecord | null {
   };
 }
 
-export function createQuestion(data: {
+export async function createQuestion(data: {
   skill: string;
   question_text: string;
   question_type: string;
@@ -2333,13 +2333,13 @@ export function createQuestion(data: {
   explanation?: string;
   time_limit_seconds?: number;
   is_active?: boolean;
-}): string {
+}): Promise<string> {
   const db = getDb();
   const slug = data.skill.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const id = `qst_${slug}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO assessment_questions (
       id, skill_slug, skill_name, question_text, question_type,
       difficulty, options_json, correct_answer, explanation,
@@ -2361,7 +2361,7 @@ export function createQuestion(data: {
     now
   );
 
-  logAuditEvent({
+  await logAuditEvent({
     eventType: 'QUESTION_CREATED',
     actorType: 'ADMIN',
     description: `Added new question for ${data.skill}: "${data.question_text.slice(0, 50)}..."`,
@@ -2371,7 +2371,7 @@ export function createQuestion(data: {
   return id;
 }
 
-export function updateQuestion(
+export async function updateQuestion(
   id: string,
   data: {
     skill?: string;
@@ -2384,9 +2384,9 @@ export function updateQuestion(
     time_limit_seconds?: number;
     is_active?: boolean;
   }
-): boolean {
+): Promise<boolean> {
   const db = getDb();
-  const existing = db.prepare('SELECT * FROM assessment_questions WHERE id = ?').get(id) as any;
+  const existing = await db.prepare('SELECT * FROM assessment_questions WHERE id = ?').get(id) as any;
   if (!existing) return false;
 
   const now = new Date().toISOString();
@@ -2401,7 +2401,7 @@ export function updateQuestion(
   const timeLimitSeconds = data.time_limit_seconds !== undefined ? data.time_limit_seconds : existing.time_limit_seconds;
   const isActive = data.is_active !== undefined ? (data.is_active ? 1 : 0) : existing.is_active;
 
-  const res = db.prepare(`
+  const res = await db.prepare(`
     UPDATE assessment_questions
     SET skill_slug = ?, skill_name = ?, question_text = ?, question_type = ?,
         difficulty = ?, options_json = ?, correct_answer = ?, explanation = ?,
@@ -2422,7 +2422,7 @@ export function updateQuestion(
     id
   );
 
-  logAuditEvent({
+  await logAuditEvent({
     eventType: 'QUESTION_UPDATED',
     actorType: 'ADMIN',
     description: `Updated question ${id} (${skill})`,
@@ -2432,12 +2432,12 @@ export function updateQuestion(
   return res.changes > 0;
 }
 
-export function toggleQuestionStatus(id: string, isActive: boolean): boolean {
+export async function toggleQuestionStatus(id: string, isActive: boolean): Promise<boolean> {
   const db = getDb();
   const now = new Date().toISOString();
-  const res = db.prepare('UPDATE assessment_questions SET is_active = ?, updated_at = ? WHERE id = ?').run(isActive ? 1 : 0, now, id);
+  const res = await db.prepare('UPDATE assessment_questions SET is_active = ?, updated_at = ? WHERE id = ?').run(isActive ? 1 : 0, now, id);
   if (res.changes > 0) {
-    logAuditEvent({
+    await logAuditEvent({
       eventType: 'QUESTION_STATUS_CHANGED',
       actorType: 'ADMIN',
       description: `Set question ${id} status to ${isActive ? 'ACTIVE' : 'INACTIVE'}`,
@@ -2448,13 +2448,13 @@ export function toggleQuestionStatus(id: string, isActive: boolean): boolean {
   return false;
 }
 
-export function softDeleteQuestion(id: string): boolean {
+export async function softDeleteQuestion(id: string): Promise<boolean> {
   const db = getDb();
   const now = new Date().toISOString();
   // Soft delete preserves historical assessment integrity
-  const res = db.prepare('UPDATE assessment_questions SET is_deleted = 1, is_active = 0, updated_at = ? WHERE id = ?').run(now, id);
+  const res = await db.prepare('UPDATE assessment_questions SET is_deleted = 1, is_active = 0, updated_at = ? WHERE id = ?').run(now, id);
   if (res.changes > 0) {
-    logAuditEvent({
+    await logAuditEvent({
       eventType: 'QUESTION_DELETED',
       actorType: 'ADMIN',
       description: `Soft-deleted question ${id} from question bank`,
@@ -2469,13 +2469,13 @@ export function softDeleteQuestion(id: string): boolean {
 // SKILLS CATALOG & CONFIGURATION
 // ==========================================
 
-export function getSkillsCatalogWithMetrics() {
+export async function getSkillsCatalogWithMetrics() {
   const db = getDb();
-  const skills = db.prepare('SELECT * FROM skills_catalog ORDER BY name ASC').all() as any[];
+  const skills = await db.prepare('SELECT * FROM skills_catalog ORDER BY name ASC').all() as any[];
 
-  return skills.map((s) => {
+  return Promise.all(skills.map(async (s) => {
     const slug = s.slug;
-    const qStats = db.prepare(`
+    const qStats = (await db.prepare(`
       SELECT
         COUNT(*) as total,
         SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active,
@@ -2485,12 +2485,12 @@ export function getSkillsCatalogWithMetrics() {
         SUM(CASE WHEN LOWER(difficulty) = 'hard' THEN 1 ELSE 0 END) as hard
       FROM assessment_questions
       WHERE skill_slug = ? AND is_deleted = 0
-    `).get(slug) as any;
+    `).get(slug)) as any;
 
-    const attemptsCount = (db.prepare('SELECT COUNT(*) as c FROM assessments WHERE LOWER(skill) = LOWER(?)').get(s.name) as { c: number }).c;
-    const verifiedCount = (db.prepare("SELECT COUNT(*) as c FROM verified_skills WHERE LOWER(skill_name) = LOWER(?) AND status = 'VERIFIED'").get(s.name) as { c: number }).c;
+    const attemptsCount = ((await db.prepare('SELECT COUNT(*) as c FROM assessments WHERE LOWER(skill) = LOWER(?)').get(s.name)) as { c: number }).c;
+    const verifiedCount = ((await db.prepare("SELECT COUNT(*) as c FROM verified_skills WHERE LOWER(skill_name) = LOWER(?) AND status = 'VERIFIED'").get(s.name)) as { c: number }).c;
 
-    const config = db.prepare('SELECT * FROM assessment_configs WHERE skill_slug = ?').get(slug) as any;
+    const config = (await db.prepare('SELECT * FROM assessment_configs WHERE skill_slug = ?').get(slug)) as any;
 
     return {
       id: s.id,
@@ -2517,15 +2517,15 @@ export function getSkillsCatalogWithMetrics() {
         timeLimitMinutes: 20,
       },
     };
-  });
+  }));
 }
 
-export function toggleSkillStatus(id: string, isActive: boolean): boolean {
+export async function toggleSkillStatus(id: string, isActive: boolean): Promise<boolean> {
   const db = getDb();
   const now = new Date().toISOString();
-  const res = db.prepare('UPDATE skills_catalog SET is_active = ?, updated_at = ? WHERE id = ?').run(isActive ? 1 : 0, now, id);
+  const res = await db.prepare('UPDATE skills_catalog SET is_active = ?, updated_at = ? WHERE id = ?').run(isActive ? 1 : 0, now, id);
   if (res.changes > 0) {
-    logAuditEvent({
+    await logAuditEvent({
       eventType: 'SKILL_STATUS_CHANGED',
       actorType: 'ADMIN',
       description: `Set skill ${id} status to ${isActive ? 'ACTIVE' : 'INACTIVE'}`,
@@ -2536,9 +2536,9 @@ export function toggleSkillStatus(id: string, isActive: boolean): boolean {
   return false;
 }
 
-export function updateSkill(id: string, data: { name?: string; category?: string; description?: string }): boolean {
+export async function updateSkill(id: string, data: { name?: string; category?: string; description?: string }): Promise<boolean> {
   const db = getDb();
-  const existing = db.prepare('SELECT * FROM skills_catalog WHERE id = ?').get(id) as any;
+  const existing = await db.prepare('SELECT * FROM skills_catalog WHERE id = ?').get(id) as any;
   if (!existing) return false;
 
   const now = new Date().toISOString();
@@ -2547,7 +2547,7 @@ export function updateSkill(id: string, data: { name?: string; category?: string
   const description = data.description !== undefined ? data.description : existing.description;
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-  const res = db.prepare(`
+  const res = await db.prepare(`
     UPDATE skills_catalog
     SET name = ?, slug = ?, category = ?, description = ?, updated_at = ?
     WHERE id = ?
@@ -2556,9 +2556,9 @@ export function updateSkill(id: string, data: { name?: string; category?: string
   return res.changes > 0;
 }
 
-export function getAssessmentConfigs() {
+export async function getAssessmentConfigs() {
   const db = getDb();
-  return db.prepare(`
+  return await db.prepare(`
     SELECT
       c.*,
       s.name as skill_name,
@@ -2569,29 +2569,29 @@ export function getAssessmentConfigs() {
   `).all();
 }
 
-export function updateAssessmentConfig(skillSlug: string, data: { questionsCount?: number; passPercentage?: number; timeLimitMinutes?: number }): boolean {
+export async function updateAssessmentConfig(skillSlug: string, data: { questionsCount?: number; passPercentage?: number; timeLimitMinutes?: number }): Promise<boolean> {
   const db = getDb();
   const now = new Date().toISOString();
-  const existing = db.prepare('SELECT * FROM assessment_configs WHERE skill_slug = ?').get(skillSlug) as any;
+  const existing = await db.prepare('SELECT * FROM assessment_configs WHERE skill_slug = ?').get(skillSlug) as any;
 
   if (existing) {
     const qCount = data.questionsCount !== undefined ? data.questionsCount : existing.questions_count;
     const pPerc = data.passPercentage !== undefined ? data.passPercentage : existing.pass_percentage;
     const tLim = data.timeLimitMinutes !== undefined ? data.timeLimitMinutes : existing.time_limit_minutes;
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE assessment_configs
       SET questions_count = ?, pass_percentage = ?, time_limit_minutes = ?, updated_at = ?
       WHERE skill_slug = ?
     `).run(qCount, pPerc, tLim, now, skillSlug);
   } else {
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO assessment_configs (id, skill_slug, questions_count, pass_percentage, time_limit_minutes, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(`cfg_${skillSlug}`, skillSlug, data.questionsCount || 10, data.passPercentage || 70, data.timeLimitMinutes || 20, now, now);
   }
 
-  logAuditEvent({
+  await logAuditEvent({
     eventType: 'ASSESSMENT_CONFIG_UPDATED',
     actorType: 'ADMIN',
     description: `Updated assessment config for ${skillSlug}`,
@@ -2605,7 +2605,7 @@ export function updateAssessmentConfig(skillSlug: string, data: { questionsCount
 // CANDIDATE EXAM RUNTIME & SNAPSHOT ENGINE
 // ==========================================
 
-export function startAssessmentAttempt(skillName: string, visitorId?: string, userId?: string): {
+export async function startAssessmentAttempt(skillName: string, visitorId?: string, userId?: string): Promise<{
   success: boolean;
   error?: string;
   message?: string;
@@ -2624,12 +2624,12 @@ export function startAssessmentAttempt(skillName: string, visitorId?: string, us
     time_limit_seconds: number;
   }>;
   startedAt?: string;
-} {
+}> {
   const db = getDb();
   const slug = skillName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
   // Verify skill exists and is active
-  const skillRow = db.prepare('SELECT * FROM skills_catalog WHERE slug = ? OR LOWER(name) = ?').get(slug, skillName.toLowerCase()) as any;
+  const skillRow = (await db.prepare('SELECT * FROM skills_catalog WHERE slug = ? OR LOWER(name) = ?').get(slug, skillName.toLowerCase())) as any;
   if (skillRow && !skillRow.is_active) {
     return {
       success: false,
@@ -2639,13 +2639,13 @@ export function startAssessmentAttempt(skillName: string, visitorId?: string, us
   }
 
   // Get config
-  const config = db.prepare('SELECT * FROM assessment_configs WHERE skill_slug = ?').get(slug) as any;
+  const config = await db.prepare('SELECT * FROM assessment_configs WHERE skill_slug = ?').get(slug) as any;
   const requiredCount = config?.questions_count || 10;
   const passPercentage = config?.pass_percentage || 70;
   const timeLimitMinutes = config?.time_limit_minutes || 20;
 
   // Retrieve active, non-deleted questions
-  const activeQuestions = db.prepare(`
+  const activeQuestions = await db.prepare(`
     SELECT * FROM assessment_questions
     WHERE skill_slug = ? AND is_active = 1 AND is_deleted = 0
     ORDER BY RANDOM()
@@ -2663,12 +2663,12 @@ export function startAssessmentAttempt(skillName: string, visitorId?: string, us
   const attemptId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
 
-  const effectiveUserId = userId || (visitorId ? (db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(visitorId, visitorId) as any)?.user_id : null);
-  const userName = getUserNameById(effectiveUserId);
+  const effectiveUserId = userId || (visitorId ? (await db.prepare('SELECT user_id FROM visitors WHERE id = ? OR anonymous_id = ?').get(visitorId, visitorId) as any)?.user_id : null);
+  const userName = await getUserNameById(effectiveUserId);
   const actorName = userName || 'Name not provided';
 
   // Create assessment attempt record
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO assessments (
       id, visitor_id, user_id, skill, score, total_questions,
       passed, status, duration_seconds, started_at, completed_at,
@@ -2686,7 +2686,7 @@ export function startAssessmentAttempt(skillName: string, visitorId?: string, us
   );
 
   // Store snapshots of questions at assessment time to preserve historical correctness!
-  const insertSnap = db.prepare(`
+  const insertSnap = await db.prepare(`
     INSERT INTO assessment_question_snapshots (
       id, assessment_id, question_id, question_order, question_text,
       question_type, difficulty, options_json, correct_answer, explanation,
@@ -2694,8 +2694,9 @@ export function startAssessmentAttempt(skillName: string, visitorId?: string, us
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
   `);
 
-  selectedQuestions.forEach((q, idx) => {
-    insertSnap.run(
+  for (let idx = 0; idx < selectedQuestions.length; idx++) {
+    const q = selectedQuestions[idx];
+    await insertSnap.run(
       `snp_${attemptId}_${idx + 1}`,
       attemptId,
       q.id,
@@ -2708,9 +2709,9 @@ export function startAssessmentAttempt(skillName: string, visitorId?: string, us
       q.explanation || null,
       now
     );
-  });
+  }
 
-  logAuditEvent({
+  await logAuditEvent({
     eventType: 'ASSESSMENT_STARTED',
     actorType: effectiveUserId ? 'USER' : 'VISITOR',
     actorId: effectiveUserId || visitorId,
@@ -2740,7 +2741,7 @@ export function startAssessmentAttempt(skillName: string, visitorId?: string, us
   };
 }
 
-export function submitAssessmentAttempt(data: {
+export async function submitAssessmentAttempt(data: {
   attemptId: string;
   userAnswers: Record<string, string | number>;
   proctoringEvents?: any[];
@@ -2748,7 +2749,7 @@ export function submitAssessmentAttempt(data: {
   terminationReason?: string;
   requesterUserId?: string;
   requesterVisitorId?: string;
-}): {
+}): Promise<{
   id: string;
   skill: string;
   score: number;
@@ -2763,9 +2764,9 @@ export function submitAssessmentAttempt(data: {
   violationCount: number;
   terminationReason?: string;
   certificateId?: string;
-} {
+}> {
   const db = getDb();
-  const attempt = db.prepare('SELECT * FROM assessments WHERE id = ?').get(data.attemptId) as any;
+  const attempt = await db.prepare('SELECT * FROM assessments WHERE id = ?').get(data.attemptId) as any;
   if (!attempt) {
     return {
       error: 'attempt_not_found',
@@ -2775,7 +2776,7 @@ export function submitAssessmentAttempt(data: {
 
   // Prevent double submission and repeated answer changes after termination or completion
   if (attempt.status !== 'in_progress' && attempt.status !== 'in-progress') {
-    const certRow = db.prepare('SELECT certificate_code FROM certificates WHERE assessment_id = ?').get(attempt.id) as any;
+    const certRow = await db.prepare('SELECT certificate_code FROM certificates WHERE assessment_id = ?').get(attempt.id) as any;
     const isTerm = attempt.status === 'INCOMPLETE';
     return {
       id: attempt.id,
@@ -2809,21 +2810,21 @@ export function submitAssessmentAttempt(data: {
     } as any;
   }
 
-  const snapshots = db.prepare(`
+  const snapshots = await db.prepare(`
     SELECT * FROM assessment_question_snapshots
     WHERE assessment_id = ?
     ORDER BY question_order ASC
   `).all(data.attemptId) as any[];
 
   let score = 0;
-  const updateSnap = db.prepare(`
+  const updateSnap = await db.prepare(`
     UPDATE assessment_question_snapshots
     SET selected_answer = ?, is_correct = ?
     WHERE id = ?
   `);
 
   const answersMap = data.userAnswers || (data as any).answers || {};
-  snapshots.forEach((snap) => {
+  for (const snap of snapshots) {
     // User answer might be keyed by snapshot ID or original question ID
     const rawAnswer = answersMap[snap.id] ?? answersMap[snap.question_id];
     let selectedStr = '';
@@ -2847,8 +2848,8 @@ export function submitAssessmentAttempt(data: {
       score += 1;
     }
 
-    updateSnap.run(selectedStr || 'Unanswered', isCorrect ? 1 : 0, snap.id);
-  });
+    await updateSnap.run(selectedStr || 'Unanswered', isCorrect ? 1 : 0, snap.id);
+  }
 
   const violations = (data.proctoringEvents || []).filter(
     (e: any) => e.severity === 'violation' || e.type === 'TAB_SWITCH' || e.type === 'FULLSCREEN_EXIT'
@@ -2860,7 +2861,7 @@ export function submitAssessmentAttempt(data: {
 
   const totalQuestions = snapshots.length || attempt.total_questions || 10;
   const slug = attempt.skill.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  const config = db.prepare('SELECT * FROM assessment_configs WHERE skill_slug = ?').get(slug) as any;
+  const config = await db.prepare('SELECT * FROM assessment_configs WHERE skill_slug = ?').get(slug) as any;
   const passPercentage = config?.pass_percentage || 70;
   const passingScore = Math.ceil(totalQuestions * (passPercentage / 100));
 
@@ -2877,12 +2878,12 @@ export function submitAssessmentAttempt(data: {
 
   // Insert individual events into proctoring_events table
   if (Array.isArray(data.proctoringEvents) && data.proctoringEvents.length > 0) {
-    const insertEvent = db.prepare(`
+    const insertEvent = await db.prepare(`
       INSERT OR IGNORE INTO proctoring_events (id, assessment_id, event_type, severity, details, timestamp, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     for (const evt of data.proctoringEvents) {
-      insertEvent.run(
+      await insertEvent.run(
         evt.id || `pevt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         data.attemptId,
         evt.type || 'UNKNOWN',
@@ -2896,7 +2897,7 @@ export function submitAssessmentAttempt(data: {
 
   const proctoringEventsJson = JSON.stringify(data.proctoringEvents || []);
 
-  db.prepare(`
+  await db.prepare(`
     UPDATE assessments
     SET score = ?, passed = ?, status = ?, duration_seconds = ?,
         completed_at = ?, proctoring_violation_count = ?,
@@ -2914,13 +2915,13 @@ export function submitAssessmentAttempt(data: {
     data.attemptId
   );
 
-  const userName = getUserNameById(attempt.user_id);
+  const userName = await getUserNameById(attempt.user_id);
   const actorName = userName || 'Name not provided';
 
   let certificateCode: string | undefined;
   if (passed) {
     const vsId = `vsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO verified_skills (id, visitor_id, user_id, skill_name, status, assessment_id, verified_at, created_at)
       VALUES (?, ?, ?, ?, 'VERIFIED', ?, ?, ?)
     `).run(vsId, attempt.visitor_id || null, attempt.user_id || null, attempt.skill, data.attemptId, now, now);
@@ -2928,15 +2929,15 @@ export function submitAssessmentAttempt(data: {
     if (attempt.user_id) {
       certificateCode = `CERT-${new Date().getFullYear()}-${attempt.skill.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${Math.floor(100000 + Math.random() * 900000)}`;
       const certId = `crt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO certificates (id, user_id, assessment_id, skill, score, total_questions, certificate_code, issue_date, verification_status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'VERIFIED', ?)
       `).run(certId, attempt.user_id, data.attemptId, attempt.skill, score, totalQuestions, certificateCode, now, now);
 
-      syncUserSkillVerification(attempt.user_id, attempt.skill, score, certificateCode, now.split('T')[0]);
+      await syncUserSkillVerification(attempt.user_id, attempt.skill, score, certificateCode, now.split('T')[0]);
     }
 
-    logAuditEvent({
+    await logAuditEvent({
       eventType: 'SKILL_VERIFIED',
       actorType: attempt.user_id ? 'USER' : 'VISITOR',
       actorId: attempt.user_id || attempt.visitor_id,
@@ -2945,7 +2946,7 @@ export function submitAssessmentAttempt(data: {
     });
   }
 
-  logAuditEvent({
+  await logAuditEvent({
     eventType: isTerminated ? 'ASSESSMENT_TERMINATED' : 'ASSESSMENT_COMPLETED',
     actorType: attempt.user_id ? 'USER' : 'VISITOR',
     actorId: attempt.user_id || attempt.visitor_id,
@@ -2982,12 +2983,12 @@ export function submitAssessmentAttempt(data: {
   };
 }
 
-export function getAdminAssessmentAttempts(limit = 100, page = 1) {
+export async function getAdminAssessmentAttempts(limit = 100, page = 1) {
   const db = getDb();
   const offset = (Math.max(1, page) - 1) * limit;
 
-  const total = (db.prepare('SELECT COUNT(*) as c FROM assessments').get() as { c: number }).c;
-  const rows = db.prepare(`
+  const total = ((await db.prepare('SELECT COUNT(*) as c FROM assessments').get()) as { c: number }).c;
+  const rows = await db.prepare(`
     SELECT
       a.id,
       a.visitor_id,
@@ -3023,9 +3024,9 @@ export function getAdminAssessmentAttempts(limit = 100, page = 1) {
   };
 }
 
-export function getAssessmentAttemptDetail(attemptId: string) {
+export async function getAssessmentAttemptDetail(attemptId: string) {
   const db = getDb();
-  const attempt = db.prepare(`
+  const attempt = await db.prepare(`
     SELECT
       a.*,
       COALESCE(u.name, 'Name not provided') as user_name,
@@ -3037,13 +3038,13 @@ export function getAssessmentAttemptDetail(attemptId: string) {
 
   if (!attempt) return null;
 
-  const snapshots = db.prepare(`
+  const snapshots = await db.prepare(`
     SELECT * FROM assessment_question_snapshots
     WHERE assessment_id = ?
     ORDER BY question_order ASC
   `).all(attemptId) as any[];
 
-  let proctoringEvents = db.prepare(`
+  let proctoringEvents = await db.prepare(`
     SELECT * FROM proctoring_events
     WHERE assessment_id = ?
     ORDER BY timestamp ASC, id ASC
@@ -3090,51 +3091,51 @@ export function getAssessmentAttemptDetail(attemptId: string) {
 // USER DASHBOARD QUERIES (Strict User Isolation)
 // ==========================================
 
-export function getUserDashboardData(userId: string) {
+export async function getUserDashboardData(userId: string) {
   const db = getDb();
 
   // 1. Resumes count
-  const resumesCount = (db.prepare('SELECT COUNT(*) as c FROM resumes WHERE user_id = ?').get(userId) as any)?.c || 0;
+  const resumesCount = ((await db.prepare('SELECT COUNT(*) as c FROM resumes WHERE user_id = ?').get(userId)) as any)?.c || 0;
 
   // 2. Analyses count
-  const analysesCount = (db.prepare('SELECT COUNT(*) as c FROM resume_analyses WHERE user_id = ?').get(userId) as any)?.c || 0;
+  const analysesCount = ((await db.prepare('SELECT COUNT(*) as c FROM resume_analyses WHERE user_id = ?').get(userId)) as any)?.c || 0;
 
   // 3. Average ATS score
-  const avgAtsRow = db.prepare('SELECT AVG(ats_score) as avg_score FROM resume_analyses WHERE user_id = ?').get(userId) as any;
+  const avgAtsRow = (await db.prepare('SELECT AVG(ats_score) as avg_score FROM resume_analyses WHERE user_id = ?').get(userId)) as any;
   const avgAtsScore = avgAtsRow?.avg_score ? Math.round(avgAtsRow.avg_score * 10) / 10 : 0;
 
   // 4. Improvements count
-  const improvementsCount = (db.prepare('SELECT COUNT(*) as c FROM resume_improvements WHERE user_id = ?').get(userId) as any)?.c || 0;
+  const improvementsCount = ((await db.prepare('SELECT COUNT(*) as c FROM resume_improvements WHERE user_id = ?').get(userId)) as any)?.c || 0;
 
   // 5. Jobs Applied
-  const jobsAppliedCount = (db.prepare("SELECT COUNT(*) as c FROM job_applications WHERE user_id = ? AND status = 'Applied'").get(userId) as any)?.c || 0;
-  const totalApplications = (db.prepare('SELECT COUNT(*) as c FROM job_applications WHERE user_id = ?').get(userId) as any)?.c || 0;
+  const jobsAppliedCount = ((await db.prepare("SELECT COUNT(*) as c FROM job_applications WHERE user_id = ? AND status = 'Applied'").get(userId)) as any)?.c || 0;
+  const totalApplications = ((await db.prepare('SELECT COUNT(*) as c FROM job_applications WHERE user_id = ?').get(userId)) as any)?.c || 0;
 
   // 6. Job Matches
-  const jobMatchesCount = (db.prepare('SELECT COUNT(*) as c FROM job_matches WHERE user_id = ?').get(userId) as any)?.c || 0;
+  const jobMatchesCount = ((await db.prepare('SELECT COUNT(*) as c FROM job_matches WHERE user_id = ?').get(userId)) as any)?.c || 0;
 
   // 7. Verified Skills
-  const verifiedSkillsCount = (db.prepare("SELECT COUNT(*) as c FROM verified_skills WHERE user_id = ? AND status = 'VERIFIED'").get(userId) as any)?.c || 0;
+  const verifiedSkillsCount = ((await db.prepare("SELECT COUNT(*) as c FROM verified_skills WHERE user_id = ? AND status = 'VERIFIED'").get(userId)) as any)?.c || 0;
 
   // 8. Assessments Completed
-  const assessmentsCount = (db.prepare("SELECT COUNT(*) as c FROM assessments WHERE user_id = ? AND status = 'COMPLETED'").get(userId) as any)?.c || 0;
+  const assessmentsCount = ((await db.prepare("SELECT COUNT(*) as c FROM assessments WHERE user_id = ? AND status = 'COMPLETED'").get(userId)) as any)?.c || 0;
 
   // 9. Certificates Earned
-  const certificatesCount = (db.prepare('SELECT COUNT(*) as c FROM certificates WHERE user_id = ?').get(userId) as any)?.c || 0;
+  const certificatesCount = ((await db.prepare('SELECT COUNT(*) as c FROM certificates WHERE user_id = ?').get(userId)) as any)?.c || 0;
 
   // 10. Courses Completed
-  const coursesCompletedCount = (db.prepare("SELECT COUNT(*) as c FROM course_progress WHERE user_id = ? AND status = 'Completed'").get(userId) as any)?.c || 0;
+  const coursesCompletedCount = ((await db.prepare("SELECT COUNT(*) as c FROM course_progress WHERE user_id = ? AND status = 'Completed'").get(userId)) as any)?.c || 0;
 
   // Resume Progress Section (per resume: latest score, previous score, improvement)
-  const resumes = db.prepare(`
+  const resumes = await db.prepare(`
     SELECT id, filename, file_type, uploaded_at, created_at
     FROM resumes
     WHERE user_id = ?
     ORDER BY uploaded_at DESC
   `).all(userId) as any[];
 
-  const resumeProgress = resumes.map((r) => {
-    const analyses = db.prepare(`
+  const resumeProgress = await Promise.all(resumes.map(async (r) => {
+    const analyses = await db.prepare(`
       SELECT id, ats_score, analyzed_at
       FROM resume_analyses
       WHERE resume_id = ? AND user_id = ?
@@ -3160,10 +3161,10 @@ export function getUserDashboardData(userId: string) {
       latestAnalysisDate: latest?.analyzed_at || null,
       latestAnalysisId: latest?.id || null,
     };
-  });
+  }));
 
   // Recent job applications
-  const recentApplications = db.prepare(`
+  const recentApplications = await db.prepare(`
     SELECT id, job_title, company, location, status, applied_at
     FROM job_applications
     WHERE user_id = ?
@@ -3172,7 +3173,7 @@ export function getUserDashboardData(userId: string) {
   `).all(userId) as any[];
 
   // Recent assessments
-  const recentAssessments = db.prepare(`
+  const recentAssessments = await db.prepare(`
     SELECT id, skill, score, total_questions, passed, status, completed_at
     FROM assessments
     WHERE user_id = ?
@@ -3181,7 +3182,7 @@ export function getUserDashboardData(userId: string) {
   `).all(userId) as any[];
 
   // Recent improvements
-  const recentImprovements = db.prepare(`
+  const recentImprovements = await db.prepare(`
     SELECT id, category, title, before_text, after_text, created_at
     FROM resume_improvements
     WHERE user_id = ?
@@ -3210,9 +3211,9 @@ export function getUserDashboardData(userId: string) {
   };
 }
 
-export function getUserResumes(userId: string) {
+export async function getUserResumes(userId: string) {
   const db = getDb();
-  const rows = db.prepare(`
+  const rows = await db.prepare(`
     SELECT
       r.id,
       r.filename,
@@ -3234,9 +3235,9 @@ export function getUserResumes(userId: string) {
   }));
 }
 
-export function getUserAnalyses(userId: string) {
+export async function getUserAnalyses(userId: string) {
   const db = getDb();
-  const rows = db.prepare(`
+  const rows = await db.prepare(`
     SELECT
       a.*,
       COALESCE(r.filename, 'Resume Document') as resume_filename
@@ -3262,9 +3263,9 @@ export function getUserAnalyses(userId: string) {
   }));
 }
 
-export function getUserSingleAnalysis(userId: string, analysisId: string) {
+export async function getUserSingleAnalysis(userId: string, analysisId: string) {
   const db = getDb();
-  const row = db.prepare(`
+  const row = await db.prepare(`
     SELECT
       a.*,
       COALESCE(r.filename, 'Resume Document') as resume_filename
@@ -3291,9 +3292,9 @@ export function getUserSingleAnalysis(userId: string, analysisId: string) {
   };
 }
 
-export function getUserImprovements(userId: string) {
+export async function getUserImprovements(userId: string) {
   const db = getDb();
-  const rows = db.prepare(`
+  const rows = await db.prepare(`
     SELECT
       i.*,
       COALESCE(r.filename, 'Active Resume') as resume_filename
@@ -3315,9 +3316,9 @@ export function getUserImprovements(userId: string) {
   }));
 }
 
-export function getUserJobApplications(userId: string) {
+export async function getUserJobApplications(userId: string) {
   const db = getDb();
-  return db.prepare(`
+  return await db.prepare(`
     SELECT *
     FROM job_applications
     WHERE user_id = ?
@@ -3325,7 +3326,7 @@ export function getUserJobApplications(userId: string) {
   `).all(userId) as any[];
 }
 
-export function createJobApplication(userId: string, data: {
+export async function createJobApplication(userId: string, data: {
   jobId?: string;
   jobTitle: string;
   company: string;
@@ -3342,7 +3343,7 @@ export function createJobApplication(userId: string, data: {
   const appliedAt = data.appliedAt || now.split('T')[0];
   const status = data.status || 'Applied';
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO job_applications (
       id, user_id, job_id, job_title, company, location, source,
       job_url, applied_at, status, notes, created_at, updated_at
@@ -3380,7 +3381,7 @@ export function createJobApplication(userId: string, data: {
   };
 }
 
-export function updateJobApplication(userId: string, applicationId: string, data: {
+export async function updateJobApplication(userId: string, applicationId: string, data: {
   jobTitle?: string;
   company?: string;
   location?: string;
@@ -3391,13 +3392,13 @@ export function updateJobApplication(userId: string, applicationId: string, data
   notes?: string;
 }) {
   const db = getDb();
-  const existing = db.prepare('SELECT * FROM job_applications WHERE id = ? AND user_id = ?').get(applicationId, userId) as any;
+  const existing = await db.prepare('SELECT * FROM job_applications WHERE id = ? AND user_id = ?').get(applicationId, userId) as any;
   if (!existing) {
     throw new Error('Job application not found or unauthorized.');
   }
 
   const now = new Date().toISOString();
-  db.prepare(`
+  await db.prepare(`
     UPDATE job_applications
     SET job_title = COALESCE(?, job_title),
         company = COALESCE(?, company),
@@ -3423,18 +3424,18 @@ export function updateJobApplication(userId: string, applicationId: string, data
     userId
   );
 
-  return db.prepare('SELECT * FROM job_applications WHERE id = ? AND user_id = ?').get(applicationId, userId);
+  return await db.prepare('SELECT * FROM job_applications WHERE id = ? AND user_id = ?').get(applicationId, userId);
 }
 
-export function deleteJobApplication(userId: string, applicationId: string): boolean {
+export async function deleteJobApplication(userId: string, applicationId: string): Promise<boolean> {
   const db = getDb();
-  const res = db.prepare('DELETE FROM job_applications WHERE id = ? AND user_id = ?').run(applicationId, userId);
+  const res = await db.prepare('DELETE FROM job_applications WHERE id = ? AND user_id = ?').run(applicationId, userId);
   return res.changes > 0;
 }
 
-export function getUserJobMatches(userId: string) {
+export async function getUserJobMatches(userId: string) {
   const db = getDb();
-  const rows = db.prepare(`
+  const rows = await db.prepare(`
     SELECT jm.*, r.filename as resume_filename
     FROM job_matches jm
     LEFT JOIN resumes r ON jm.resume_id = r.id
@@ -3456,12 +3457,12 @@ export function getUserJobMatches(userId: string) {
   }));
 }
 
-export function getUserSkillsStatus(userId: string) {
+export async function getUserSkillsStatus(userId: string) {
   const db = getDb();
-  const catalog = db.prepare('SELECT * FROM skills_catalog WHERE is_active = 1 ORDER BY category, name').all() as any[];
+  const catalog = await db.prepare('SELECT * FROM skills_catalog WHERE is_active = 1 ORDER BY category, name').all() as any[];
 
-  return catalog.map((skill) => {
-    const verified = db.prepare(`
+  return Promise.all(catalog.map(async (skill) => {
+    const verified = await db.prepare(`
       SELECT vs.*, a.score, a.total_questions, c.certificate_code
       FROM verified_skills vs
       LEFT JOIN assessments a ON vs.assessment_id = a.id
@@ -3485,7 +3486,7 @@ export function getUserSkillsStatus(userId: string) {
       };
     }
 
-    const latestAttempt = db.prepare(`
+    const latestAttempt = await db.prepare(`
       SELECT * FROM assessments
       WHERE user_id = ? AND LOWER(skill) = LOWER(?)
       ORDER BY created_at DESC
@@ -3517,12 +3518,12 @@ export function getUserSkillsStatus(userId: string) {
       verifiedAt: null,
       certificateCode: null,
     };
-  });
+  }));
 }
 
-export function getUserAssessments(userId: string) {
+export async function getUserAssessments(userId: string) {
   const db = getDb();
-  const rows = db.prepare(`
+  const rows = await db.prepare(`
     SELECT a.*, c.certificate_code
     FROM assessments a
     LEFT JOIN certificates c ON a.id = c.assessment_id
@@ -3547,9 +3548,9 @@ export function getUserAssessments(userId: string) {
   }));
 }
 
-export function getUserCertificates(userId: string) {
+export async function getUserCertificates(userId: string) {
   const db = getDb();
-  const rows = db.prepare(`
+  const rows = await db.prepare(`
     SELECT *
     FROM certificates
     WHERE user_id = ?
@@ -3568,9 +3569,9 @@ export function getUserCertificates(userId: string) {
   }));
 }
 
-export function getCertificateByCode(code: string) {
+export async function getCertificateByCode(code: string) {
   const db = getDb();
-  const row = db.prepare(`
+  const row = await db.prepare(`
     SELECT c.*, u.name as user_name
     FROM certificates c
     LEFT JOIN users u ON c.user_id = u.id
@@ -3592,9 +3593,9 @@ export function getCertificateByCode(code: string) {
   };
 }
 
-export function getUserCourses(userId: string) {
+export async function getUserCourses(userId: string) {
   const db = getDb();
-  const rows = db.prepare(`
+  const rows = await db.prepare(`
     SELECT
       c.*,
       COALESCE(cp.lessons_completed, 0) as lessons_completed,
@@ -3623,9 +3624,9 @@ export function getUserCourses(userId: string) {
   }));
 }
 
-export function updateUserCourseProgress(userId: string, courseId: string, lessonsCompleted: number) {
+export async function updateUserCourseProgress(userId: string, courseId: string, lessonsCompleted: number) {
   const db = getDb();
-  const course = db.prepare('SELECT id, total_lessons FROM courses WHERE id = ? OR slug = ?').get(courseId, courseId) as any;
+  const course = await db.prepare('SELECT id, total_lessons FROM courses WHERE id = ? OR slug = ?').get(courseId, courseId) as any;
   if (!course) {
     throw new Error('Course not found.');
   }
@@ -3638,10 +3639,10 @@ export function updateUserCourseProgress(userId: string, courseId: string, lesso
   const now = new Date().toISOString();
   const completionDate = isCompleted ? now : null;
 
-  const existing = db.prepare('SELECT id FROM course_progress WHERE user_id = ? AND course_id = ?').get(userId, resolvedCourseId) as any;
+  const existing = await db.prepare('SELECT id FROM course_progress WHERE user_id = ? AND course_id = ?').get(userId, resolvedCourseId) as any;
 
   if (existing) {
-    db.prepare(`
+    await db.prepare(`
       UPDATE course_progress
       SET lessons_completed = ?, status = ?, completion_date = COALESCE(?, completion_date),
           last_accessed_at = ?, updated_at = ?
@@ -3649,7 +3650,7 @@ export function updateUserCourseProgress(userId: string, courseId: string, lesso
     `).run(clampedCompleted, status, completionDate, now, now, existing.id);
   } else {
     const id = `cp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO course_progress (
         id, user_id, course_id, lessons_completed, total_lessons,
         status, completion_date, last_accessed_at, created_at, updated_at
@@ -3670,9 +3671,9 @@ export function updateUserCourseProgress(userId: string, courseId: string, lesso
  * Retrieves a user's active profile skills.
  * If the user has no skills tracked yet, seeds initial profile skills.
  */
-export function getUserSkills(userId: string) {
+export async function getUserSkills(userId: string) {
   const db = getDb();
-  let rows = db.prepare('SELECT * FROM user_skills WHERE user_id = ? ORDER BY created_at ASC').all(userId) as any[];
+  let rows = await db.prepare('SELECT * FROM user_skills WHERE user_id = ? ORDER BY created_at ASC').all(userId) as any[];
 
   // If user has no skills tracked yet, seed their initial skills and check against verified_skills
   if (rows.length === 0) {
@@ -3687,7 +3688,7 @@ export function getUserSkills(userId: string) {
     ];
 
     const now = new Date().toISOString();
-    const insertStmt = db.prepare(`
+    const insertStmt = await db.prepare(`
       INSERT OR IGNORE INTO user_skills (
         id, user_id, skill_name, category, status, score, certificate_id,
         verified_date, claimed_date, created_at, updated_at
@@ -3699,17 +3700,17 @@ export function getUserSkills(userId: string) {
       const id = `usk_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`;
 
       // Check if this user has already verified this skill in verified_skills table
-      const verified = db.prepare(`
+      const verified = (await db.prepare(`
         SELECT vs.*, a.score as att_score, a.total_questions, c.certificate_code
         FROM verified_skills vs
         LEFT JOIN assessments a ON vs.assessment_id = a.id
         LEFT JOIN certificates c ON vs.assessment_id = c.assessment_id
         WHERE vs.user_id = ? AND LOWER(vs.skill_name) = LOWER(?) AND vs.status = 'VERIFIED'
         ORDER BY vs.verified_at DESC LIMIT 1
-      `).get(userId, s.name) as any;
+      `).get(userId, s.name)) as any;
 
       if (verified) {
-        insertStmt.run(
+        await insertStmt.run(
           id,
           userId,
           s.name,
@@ -3723,7 +3724,7 @@ export function getUserSkills(userId: string) {
           now
         );
       } else {
-        insertStmt.run(
+        await insertStmt.run(
           id,
           userId,
           s.name,
@@ -3739,18 +3740,18 @@ export function getUserSkills(userId: string) {
       }
     }
 
-    rows = db.prepare('SELECT * FROM user_skills WHERE user_id = ? ORDER BY created_at ASC').all(userId) as any[];
+    rows = await db.prepare('SELECT * FROM user_skills WHERE user_id = ? ORDER BY created_at ASC').all(userId) as any[];
   }
 
   // Sync any newly verified skills from verified_skills/certificates
-  return rows.map((r) => {
+  return Promise.all(rows.map(async (r) => {
     let status = r.status;
     let score = r.score;
     let certificateId = r.certificate_id;
     let verifiedDate = r.verified_date;
 
     if (status !== 'verified') {
-      const verified = db.prepare(`
+      const verified = await db.prepare(`
         SELECT vs.*, a.score as att_score, c.certificate_code
         FROM verified_skills vs
         LEFT JOIN assessments a ON vs.assessment_id = a.id
@@ -3764,7 +3765,7 @@ export function getUserSkills(userId: string) {
         score = verified.att_score;
         certificateId = verified.certificate_code;
         verifiedDate = verified.verified_at;
-        db.prepare(`
+        await db.prepare(`
           UPDATE user_skills
           SET status = 'verified', score = ?, certificate_id = ?, verified_date = ?, updated_at = ?
           WHERE id = ?
@@ -3782,13 +3783,13 @@ export function getUserSkills(userId: string) {
       verifiedDate: verifiedDate || undefined,
       claimedDate: r.claimed_date || undefined,
     };
-  });
+  }));
 }
 
 /**
  * Adds or claims a skill for an authenticated user.
  */
-export function addUserSkill(
+export async function addUserSkill(
   userId: string,
   skillName: string,
   category: string,
@@ -3798,13 +3799,13 @@ export function addUserSkill(
   const now = new Date().toISOString();
 
   // Check if skill already exists for this user
-  const existing = db.prepare(
+  const existing = (await db.prepare(
     'SELECT * FROM user_skills WHERE user_id = ? AND LOWER(skill_name) = LOWER(?)'
-  ).get(userId, skillName) as any;
+  ).get(userId, skillName)) as any;
 
   if (existing) {
     if (claimDirectly && existing.status === 'not-verified') {
-      db.prepare(`
+      await db.prepare(`
         UPDATE user_skills
         SET status = 'claimed', claimed_date = ?, updated_at = ?
         WHERE id = ?
@@ -3825,7 +3826,7 @@ export function addUserSkill(
   }
 
   // Check if already verified in verified_skills
-  const verified = db.prepare(`
+  const verified = await db.prepare(`
     SELECT vs.*, a.score as att_score, c.certificate_code
     FROM verified_skills vs
     LEFT JOIN assessments a ON vs.assessment_id = a.id
@@ -3841,7 +3842,7 @@ export function addUserSkill(
   const verifiedDate = verified ? verified.verified_at : null;
   const claimedDate = claimDirectly ? now.split('T')[0] : null;
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO user_skills (
       id, user_id, skill_name, category, status, score, certificate_id,
       verified_date, claimed_date, created_at, updated_at
@@ -3876,14 +3877,14 @@ export function addUserSkill(
  * Removes a skill from a user's active profile.
  * PRESERVES historical assessment attempts and certificates in the database archive.
  */
-export function deleteUserSkill(
+export async function deleteUserSkill(
   userId: string,
   skillIdOrName: string
-): { success: boolean; error?: string; deletedSkill?: { id: string; name: string; status: string; certificateId?: string } } {
+): Promise<{ success: boolean; error?: string; deletedSkill?: { id: string; name: string; status: string; certificateId?: string } }> {
   const db = getDb();
 
   // Strict ownership check: must match userId AND (id OR skill_name)
-  const target = db.prepare(`
+  const target = await db.prepare(`
     SELECT * FROM user_skills
     WHERE user_id = ? AND (id = ? OR LOWER(skill_name) = LOWER(?))
   `).get(userId, skillIdOrName, skillIdOrName) as any;
@@ -3893,13 +3894,13 @@ export function deleteUserSkill(
   }
 
   // Delete from user_skills table
-  db.prepare('DELETE FROM user_skills WHERE id = ? AND user_id = ?').run(target.id, userId);
+  await db.prepare('DELETE FROM user_skills WHERE id = ? AND user_id = ?').run(target.id, userId);
 
   // NOTE: Assessments and certificates tables are explicitly preserved.
   // We do NOT delete historical attempts or verified credentials.
 
-  const userName = getUserNameById(userId);
-  logAuditEvent({
+  const userName = await getUserNameById(userId);
+  await logAuditEvent({
     eventType: 'SKILL_REMOVED',
     actorType: 'USER',
     actorId: userId,
@@ -3927,7 +3928,7 @@ export function deleteUserSkill(
 /**
  * Synchronizes verified skill status when an assessment is passed.
  */
-export function syncUserSkillVerification(
+export async function syncUserSkillVerification(
   userId: string,
   skillName: string,
   score: number,
@@ -3937,22 +3938,22 @@ export function syncUserSkillVerification(
   const db = getDb();
   const now = new Date().toISOString();
 
-  const existing = db.prepare(
+  const existing = (await db.prepare(
     'SELECT * FROM user_skills WHERE user_id = ? AND LOWER(skill_name) = LOWER(?)'
-  ).get(userId, skillName) as any;
+  ).get(userId, skillName)) as any;
 
   if (existing) {
-    db.prepare(`
+    await db.prepare(`
       UPDATE user_skills
       SET status = 'verified', score = ?, certificate_id = ?, verified_date = ?, updated_at = ?
       WHERE id = ?
     `).run(score, certificateCode, verifiedAt, now, existing.id);
   } else {
-    const catalogItem = db.prepare('SELECT category FROM skills_catalog WHERE LOWER(name) = LOWER(?)').get(skillName) as any;
+    const catalogItem = (await db.prepare('SELECT category FROM skills_catalog WHERE LOWER(name) = LOWER(?)').get(skillName)) as any;
     const category = catalogItem?.category || 'Technical';
     const id = `usk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO user_skills (
         id, user_id, skill_name, category, status, score, certificate_id,
         verified_date, claimed_date, created_at, updated_at
@@ -3964,7 +3965,7 @@ export function syncUserSkillVerification(
 /**
  * Records a camera / fullscreen / behavioral proctoring event into SQLite database.
  */
-export function recordProctoringEvent(
+export async function recordProctoringEvent(
   assessmentId: string,
   eventType: string,
   severity: 'info' | 'warning' | 'violation',
@@ -3975,13 +3976,13 @@ export function recordProctoringEvent(
   const now = new Date().toISOString();
 
   try {
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO proctoring_events (id, assessment_id, event_type, severity, details, timestamp, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(id, assessmentId, eventType, severity, details || null, now, now);
 
     if (severity === 'violation') {
-      db.prepare(`
+      await db.prepare(`
         UPDATE assessments
         SET proctoring_violation_count = COALESCE(proctoring_violation_count, 0) + 1
         WHERE id = ?
@@ -3997,11 +3998,11 @@ export function recordProctoringEvent(
 /**
  * Retrieves proctoring event logs for admin monitoring.
  */
-export function getProctoringEvents(limit = 50, assessmentId?: string) {
+export async function getProctoringEvents(limit = 50, assessmentId?: string) {
   const db = getDb();
   try {
     if (assessmentId) {
-      return db.prepare(`
+      return await db.prepare(`
         SELECT pe.*, a.skill, a.visitor_id, u.name as user_name, u.email as user_email
         FROM proctoring_events pe
         LEFT JOIN assessments a ON pe.assessment_id = a.id
@@ -4012,7 +4013,7 @@ export function getProctoringEvents(limit = 50, assessmentId?: string) {
       `).all(assessmentId, limit);
     }
 
-    return db.prepare(`
+    return await db.prepare(`
       SELECT pe.*, a.skill, a.visitor_id, u.name as user_name, u.email as user_email
       FROM proctoring_events pe
       LEFT JOIN assessments a ON pe.assessment_id = a.id
@@ -4029,14 +4030,14 @@ export function getProctoringEvents(limit = 50, assessmentId?: string) {
 /**
  * Returns aggregated proctoring telemetry for admin center.
  */
-export function getProctoringSummary() {
+export async function getProctoringSummary() {
   const db = getDb();
   try {
-    const totalEvents = (db.prepare('SELECT COUNT(*) as count FROM proctoring_events').get() as any)?.count || 0;
-    const totalViolations = (db.prepare("SELECT COUNT(*) as count FROM proctoring_events WHERE severity = 'violation'").get() as any)?.count || 0;
-    const totalWarnings = (db.prepare("SELECT COUNT(*) as count FROM proctoring_events WHERE severity = 'warning'").get() as any)?.count || 0;
+    const totalEvents = ((await db.prepare('SELECT COUNT(*) as count FROM proctoring_events').get()) as any)?.count || 0;
+    const totalViolations = ((await db.prepare("SELECT COUNT(*) as count FROM proctoring_events WHERE severity = 'violation'").get()) as any)?.count || 0;
+    const totalWarnings = ((await db.prepare("SELECT COUNT(*) as count FROM proctoring_events WHERE severity = 'warning'").get()) as any)?.count || 0;
 
-    const violationBreakdown = db.prepare(`
+    const violationBreakdown = await db.prepare(`
       SELECT event_type, COUNT(*) as count
       FROM proctoring_events
       WHERE severity = 'violation'
@@ -4044,7 +4045,7 @@ export function getProctoringSummary() {
       ORDER BY count DESC
     `).all();
 
-    const activeOrRecentSessions = db.prepare(`
+    const activeOrRecentSessions = await db.prepare(`
       SELECT a.id, a.skill, a.score, a.passed, a.status, a.duration_seconds, a.proctoring_violation_count, a.created_at,
              u.name as user_name, u.email as user_email
       FROM assessments a
@@ -4053,7 +4054,7 @@ export function getProctoringSummary() {
       LIMIT 20
     `).all();
 
-    const recentEvents = getProctoringEvents(30);
+    const recentEvents = await getProctoringEvents(30);
 
     return {
       totalEvents,

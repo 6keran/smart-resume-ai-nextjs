@@ -4,12 +4,12 @@ import { getUserAssessments } from '@/lib/db';
 
 export async function GET(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const assessments = getUserAssessments(user.id);
+    const assessments = await getUserAssessments(user.id);
     return NextResponse.json({ assessments });
   } catch (err) {
     console.error('Error fetching user assessments:', err);

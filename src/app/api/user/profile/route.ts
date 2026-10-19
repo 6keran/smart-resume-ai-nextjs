@@ -4,7 +4,7 @@ import { getUserFromRequest } from '@/lib/userSession';
 
 export async function GET(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
@@ -35,7 +35,7 @@ export async function PUT(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { name, email } = body;
 
-    const updated = updateUserProfile(user.id, { name, email });
+    const updated = await updateUserProfile(user.id, { name, email });
 
     const response = NextResponse.json({
       success: true,
@@ -71,7 +71,7 @@ export async function PUT(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
         );
       }
 
-      changeUserPassword(user.id, currentPassword, newPassword);
+      await changeUserPassword(user.id, currentPassword, newPassword);
 
       return NextResponse.json({
         success: true,
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
     }
 
     // Default to updating profile name / email
-    const updated = updateUserProfile(user.id, { name: body.name, email: body.email });
+    const updated = await updateUserProfile(user.id, { name: body.name, email: body.email });
     return NextResponse.json({
       success: true,
       user: updated,

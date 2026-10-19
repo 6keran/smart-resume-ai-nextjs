@@ -23,7 +23,7 @@ export async function GET(req: Request) {
     const id = searchParams.get('id');
 
     if (id) {
-      const detail = getAssessmentAttemptDetail(id);
+      const detail = await getAssessmentAttemptDetail(id);
       if (!detail) {
         return NextResponse.json({ message: 'Assessment attempt not found' }, { status: 404 });
       }
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
 
-    const result = getAdminAssessmentAttempts(limit, page);
+    const result = await getAdminAssessmentAttempts(limit, page);
     return NextResponse.json(result);
   } catch (err) {
     console.error('API /api/admin/assessments/attempts GET error:', err);

@@ -9,12 +9,12 @@ import {
 
 export async function GET(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const applications = getUserJobApplications(user.id);
+    const applications = await getUserJobApplications(user.id);
     return NextResponse.json({ applications });
   } catch (err) {
     console.error('Error fetching job applications:', err);
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const application = createJobApplication(user.id, {
+    const application = await createJobApplication(user.id, {
       jobId,
       jobTitle,
       company,
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
@@ -82,7 +82,7 @@ export async function PUT(req: Request) {
       );
     }
 
-    const updated = updateJobApplication(user.id, id, {
+    const updated = await updateJobApplication(user.id, id, {
       jobTitle,
       company,
       location,
@@ -109,7 +109,7 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
@@ -129,7 +129,7 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const deleted = deleteJobApplication(user.id, id);
+    const deleted = await deleteJobApplication(user.id, id);
     if (!deleted) {
       return NextResponse.json(
         { message: 'Application not found or unauthorized.' },

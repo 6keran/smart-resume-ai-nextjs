@@ -82,9 +82,9 @@ export async function POST(req: Request) {
 
     // Persist real upload and analysis to database
     try {
-      const user = getUserFromRequest(req);
-      const visitorId = getOrCreateVisitorId(req);
-      const resumeId = recordResumeUpload({
+      const user = await getUserFromRequest(req);
+      const visitorId = await getOrCreateVisitorId(req);
+      const resumeId = await recordResumeUpload({
         visitorId,
         userId: user?.id,
         filename: extractedMeta.fileName || 'Pasted-Resume.txt',
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
         parsedSuccessfully: true,
       });
 
-      recordResumeAnalysis({
+      await recordResumeAnalysis({
         visitorId,
         userId: user?.id,
         resumeId,

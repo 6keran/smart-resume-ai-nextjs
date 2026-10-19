@@ -18,10 +18,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'attemptId is required' }, { status: 400 });
     }
 
-    const user = getUserFromRequest(req);
-    const visitorId = getOrCreateVisitorId(req);
+    const user = await getUserFromRequest(req);
+    const visitorId = await getOrCreateVisitorId(req);
 
-    const graded = submitAssessmentAttempt({
+    const graded = await submitAssessmentAttempt({
       attemptId,
       userAnswers,
       proctoringEvents,
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     }
 
     // Retrieve snapshot details to calculate topic breakdown if desired
-    const detail = getAssessmentAttemptDetail(attemptId);
+    const detail = await getAssessmentAttemptDetail(attemptId);
     const snapshots = detail?.snapshots || [];
 
     const topicMap: Record<string, { correct: number; total: number }> = {};
