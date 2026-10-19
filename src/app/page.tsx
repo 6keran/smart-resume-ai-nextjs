@@ -314,14 +314,14 @@ export default function LandingPage() {
                   <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
                     <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider block mb-1.5">Original Phrasing</span>
                     <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                      &quot;Responsible for optimizing database queries and improving performance for the user search application.&quot;
+                      &ldquo;Responsible for optimizing database queries and improving performance for the user search application.&rdquo;
                     </p>
                     <span className="text-[10px] text-red-400/80 font-medium mt-2 block">Lacks quantifiable impact and action verbs</span>
                   </div>
                   <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
                     <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block mb-1.5">AI-Enhanced Output</span>
                     <p className="text-xs text-[var(--text-primary)] font-medium leading-relaxed">
-                      &quot;Architected multi-column indexing strategy across PostgreSQL clusters, reducing search latency by 42% for 250K+ daily active users.&quot;
+                      &ldquo;Architected multi-column indexing strategy across PostgreSQL clusters, reducing search latency by 42% for 250K+ daily active users.&rdquo;
                     </p>
                     <span className="text-[10px] text-emerald-500 font-semibold mt-2 block">Quantified metric + action verb + tech stack highlighted</span>
                   </div>

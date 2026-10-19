@@ -69,7 +69,7 @@ export default function TermsPage() {
               1. Acceptance of Terms
             </h2>
             <p>
-              By accessing, registering with, or utilizing any services provided by Smart Resume AI (the &quot;Platform&quot;), you agree to be legally bound by these Terms and Conditions. If you do not agree with any part of these terms, you must discontinue using the platform immediately.
+              By accessing, registering with, or utilizing any services provided by Smart Resume AI (the &ldquo;Platform&rdquo;), you agree to be legally bound by these Terms and Conditions. If you do not agree with any part of these terms, you must discontinue using the platform immediately.
             </p>
           </section>
 
@@ -159,7 +159,7 @@ export default function TermsPage() {
               7. Termination and Modifications
             </h2>
             <p>
-              We reserve the right to suspend or terminate your account at any time for violation of these Terms. We may update these Terms periodically to reflect changes in legal requirements or platform features. Updated terms will take effect upon posting with a refreshed &quot;Last updated&quot; date.
+              We reserve the right to suspend or terminate your account at any time for violation of these Terms. We may update these Terms periodically to reflect changes in legal requirements or platform features. Updated terms will take effect upon posting with a refreshed &ldquo;Last updated&rdquo; date.
             </p>
           </section>
 

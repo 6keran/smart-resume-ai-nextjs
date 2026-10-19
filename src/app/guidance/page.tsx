@@ -470,7 +470,7 @@ export default function CareerGuidancePage() {
               <div className="pt-3 border-t border-[var(--border-color)] text-[11px] bg-[var(--bg-secondary)]/50 p-3 rounded-xl">
                 <strong className="text-[var(--text-primary)] block mb-0.5">Recruiter Pro-Tip:</strong>
                 <span className="text-[var(--text-secondary)] italic leading-relaxed">
-                  &quot;{rnd.tips}&quot;
+                  &ldquo;{rnd.tips}&rdquo;
                 </span>
               </div>
             </GlassCard>

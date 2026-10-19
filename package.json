@@ -7,7 +7,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test:regression": "node scripts/test_auth_and_theme_regression.mjs"
+    "test:regression": "node scripts/test_auth_and_theme_regression.mjs",
+    "db:migrate:postgres": "node scripts/migrate_sqlite_to_postgres.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",
@@ -21,6 +22,7 @@
     "next": "16.3.8",
     "next-themes": "^0.4.6",
     "pdf-parse": "^1.1.1",
+    "pg": "^8.23.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "recharts": "^3.10.1",
@@ -30,6 +32,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

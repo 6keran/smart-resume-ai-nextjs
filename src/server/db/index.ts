@@ -1,38 +1,35 @@
 import 'server-only';
-import { DatabaseSync } from 'node:sqlite';
-import path from 'node:path';
-import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { SEED_SKILLS, INITIAL_ASSESSMENT_QUESTIONS } from './seedQuestions';
+import { getDb as getDbFromAdapter, type DatabaseClient } from './adapter';
 
-let dbInstance: DatabaseSync | null = null;
+export type { DatabaseClient };
 
-const DB_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DB_DIR, 'smart_resume.db');
+let dbInstance: DatabaseClient | null = null;
+let isInitialized = false;
 
 const SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || 'smart_resume_ai_super_secret_admin_jwt_key_2026';
 
 /**
- * Returns the singleton SQLite database instance, creating tables and indexes on first call.
+ * Returns the active database instance (PostgreSQL on Vercel/production, SQLite in local development).
  */
-export function getDb(): DatabaseSync {
-  if (dbInstance) {
+export function getDb(): DatabaseClient {
+  if (dbInstance && isInitialized) {
     return dbInstance;
   }
 
-  if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
+  dbInstance = getDbFromAdapter();
+
+  if (isInitialized) {
+    return dbInstance;
   }
 
-  dbInstance = new DatabaseSync(DB_PATH);
+  isInitialized = true;
 
-  // Enable WAL mode for high concurrency and performance
-  dbInstance.exec('PRAGMA journal_mode = WAL;');
-  dbInstance.exec('PRAGMA foreign_keys = ON;');
-
-  // 1. Admin Users Table
-  dbInstance.exec(`
-    CREATE TABLE IF NOT EXISTS admin_users (
+  if (!dbInstance.isPostgres) {
+    // 1. Admin Users Table
+    dbInstance.exec(`
+      CREATE TABLE IF NOT EXISTS admin_users (
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
@@ -420,14 +417,15 @@ export function getDb(): DatabaseSync {
     }
   }
 
-  // Ensure default admin user is seeded securely
-  ensureAdminUserExists(dbInstance);
+    // Ensure default admin user is seeded securely
+    ensureAdminUserExists(dbInstance);
 
-  // Ensure seed skills and initial question bank are populated if empty
-  ensureSeedQuestionsAndSkills(dbInstance);
+    // Ensure seed skills and initial question bank are populated if empty
+    ensureSeedQuestionsAndSkills(dbInstance);
 
-  // Ensure career courses are seeded if empty
-  ensureSeedCourses(dbInstance);
+    // Ensure career courses are seeded if empty
+    ensureSeedCourses(dbInstance);
+  }
 
   return dbInstance;
 }
@@ -503,7 +501,7 @@ export function verifyAdminToken(token: string | undefined | null): { sub: strin
   return verified;
 }
 
-function ensureAdminUserExists(db: DatabaseSync) {
+function ensureAdminUserExists(db: DatabaseClient) {
   const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
   const adminPass = process.env.ADMIN_PASSWORD;
 
@@ -533,7 +531,7 @@ function ensureAdminUserExists(db: DatabaseSync) {
   }
 }
 
-function ensureSeedQuestionsAndSkills(db: DatabaseSync) {
+function ensureSeedQuestionsAndSkills(db: DatabaseClient) {
   try {
     // 1. Check and seed skills_catalog & default configs
     const skillCount = (db.prepare('SELECT COUNT(*) as c FROM skills_catalog').get() as { c: number }).c;
@@ -657,7 +655,7 @@ export const SEED_COURSES = [
   },
 ];
 
-function ensureSeedCourses(db: DatabaseSync) {
+function ensureSeedCourses(db: DatabaseClient) {
   try {
     const count = (db.prepare('SELECT COUNT(*) as c FROM courses').get() as { c: number }).c;
     if (count === 0) {
@@ -3048,7 +3046,7 @@ export function getAssessmentAttemptDetail(attemptId: string) {
   let proctoringEvents = db.prepare(`
     SELECT * FROM proctoring_events
     WHERE assessment_id = ?
-    ORDER BY datetime(timestamp) ASC, id ASC
+    ORDER BY timestamp ASC, id ASC
   `).all(attemptId) as any[];
 
   if (proctoringEvents.length === 0 && attempt.proctoring_events_json) {
