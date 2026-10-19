@@ -1,145 +1,91 @@
-// filepath: /D:/GIST/Smart-AI-Resume-Analyzer/.gitignore
-__pycache__/
-*.py[cod]
-*$py.class
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# C extensions
-*.so
+# dependencies
+node_modules/
+**/node_modules/
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
+# testing
+/coverage
+
+# next.js & builds
+.next/
+**/.next/
+/out/
+/build
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+**/dist/
+scratch/
 
-# PyInstaller
-*.manifest
-*.spec
+# sqlite WAL/SHM
+*.db-shm
+*.db-wal
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# celery beat schedule file
-celerybeat-schedule
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Streamlit
-.streamlit/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# VS Code
-.vscode/
-
-# PyCharm
-.idea/
-
-# Database files
-*.db
-*.sqlite3
-
-# Temporary files
-*.tmp
-*.temp
-temp/
-
-# OS specific files
+# misc
 .DS_Store
-Thumbs.db
+*.pem
+/certificates
 
-# Resume files uploaded by users
-uploads/
-resume_data.db
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# Local binaries
-poppler/
-poppler.zip
+# env files (can opt-in for committing if needed)
+.env*
+.env.local
 
-# Local exported data
-resume_data_export.xlsx
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Local secrets
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Local SQLite databases and runtime files
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.sqlite
+data/*.sqlite3
+*.db-shm
+*.db-wal
+
+# Generated output
+.next/
+node_modules/
+coverage/
+out/
+
+# Browser diagnostic profiles and generated artifacts
+scripts/.chrome_*/
+scripts/.edge_*/
+scripts/login_*.png
+scripts/analyze_dump.mjs
+scripts/downloaded_layout.js
+scripts/extracted_mockData.js
+scripts/extract_mockdata_err.mjs
+
+# Generated Edge diagnostic profiles
+/scripts/.edge_theme_*/
+
+# Local browser diagnostic utility
+/scripts/wait_main_app.mjs
+
+# Generated debugging output and local QA screenshots
+/scripts/downloaded_layout.js
+/scripts/extracted_mockData.js
+/scripts/login_*.png

@@ -1,0 +1,520 @@
+@import "tailwindcss" source(none);
+@source "../**/*.{js,ts,jsx,tsx}";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root,
+.dark,
+[data-theme="dark"] {
+  /* DARK THEME (PRIMARY DEFAULT) - Reference Dark Dashboard */
+  color-scheme: dark;
+  --bg-primary: #171717;
+  --bg-secondary: #1C1C1C;
+  --bg-card: #2A2A2A;
+  --bg-elevated: #323232;
+  --input-bg: #222222;
+  --text-primary: #F5F5F5;
+  --text-secondary: #B5B5B5;
+  --text-muted: #858585;
+  --border-color: #3B3B3B;
+  --border-hover: #4E4E4E;
+  --accent: #8B7CF6;
+  --accent-hover: #A093FF;
+  --accent-subtle: #353044;
+  --disabled-bg: #222222;
+  --disabled-text: #858585;
+  --color-success: #8CCF9B;
+  --color-warning: #E8B45D;
+  --color-error: #E77A7A;
+  --glow-color: transparent;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 4px 14px -2px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 8px 24px -4px rgba(0, 0, 0, 0.70);
+}
+
+.light,
+[data-theme="light"] {
+  /* LIGHT THEME (ALTERNATIVE) */
+  color-scheme: light;
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F5F6F8;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #F5F6F8;
+  --input-bg: #FFFFFF;
+  --text-primary: #24272D;
+  --text-secondary: #626975;
+  --text-muted: #858B95;
+  --border-color: #E1E4E8;
+  --border-hover: #CBD0D7;
+  --accent: #7C6AF0;
+  --accent-hover: #6956DC;
+  --accent-subtle: #F0EDFD;
+  --disabled-bg: #ECEEF1;
+  --disabled-text: #858B95;
+  --color-success: #237A52;
+  --color-warning: #946200;
+  --color-error: #B42332;
+  --glow-color: transparent;
+  --shadow-sm: 0 1px 2px 0 rgba(36, 39, 45, 0.05);
+  --shadow-md: 0 4px 12px -2px rgba(36, 39, 45, 0.08);
+  --shadow-lg: 0 8px 24px -4px rgba(36, 39, 45, 0.12);
+}
+
+@theme {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-card: var(--bg-card);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-border-brand: var(--border-color);
+  --color-accent-brand: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-brand-success: var(--color-success);
+  --color-brand-warning: var(--color-warning);
+  --color-brand-error: var(--color-error);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  overflow-x: hidden;
+}
+
+/* Custom modern scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Glassmorphism & SaaS Card helpers */
+.glass-panel {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.glass-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+}
+
+/* Accessible Focus Styling */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Standardized SaaS UI Utility Classes */
+.saas-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+.saas-card-interactive {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.saas-card-interactive:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.saas-input {
+  width: 100%;
+  background-color: var(--input-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.saas-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-subtle);
+  outline: none;
+}
+.saas-input::placeholder {
+  color: var(--text-muted);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: var(--accent);
+  color: #FFFFFF;
+  height: 42px;
+  padding: 0 1.25rem;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  border: 1px solid transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--accent-hover);
+}
+.btn-primary:disabled {
+  background-color: var(--disabled-bg);
+  color: var(--disabled-text);
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  height: 42px;
+  padding: 0 1.25rem;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  border: 1px solid var(--border-color);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--bg-elevated);
+  border-color: var(--border-hover);
+}
+.btn-secondary:disabled {
+  background-color: var(--disabled-bg);
+  color: var(--disabled-text);
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.btn-destructive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: var(--color-error);
+  color: #FFFFFF;
+  height: 44px;
+  padding: 0 1.25rem;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  border: 1px solid transparent;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+  cursor: pointer;
+}
+.btn-destructive:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+/* Ambient glow accents - deprecated, kept as no-op for compatibility */
+.ambient-glow {
+  display: none;
+}
+
+/* AI Scan Line Animation */
+@keyframes scanline {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    top: 96%;
+    opacity: 0;
+  }
+}
+
+.animate-scan {
+  animation: scanline 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Pulse badge ring */
+@keyframes pulseRing {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(49, 94, 173, 0.5);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(49, 94, 173, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(49, 94, 173, 0);
+  }
+}
+
+.pulse-badge {
+  animation: pulseRing 2s infinite;
+}
+
+/* A4 Sheet standard dimension: 210mm x 297mm (Ratio: 1 : 1.414) */
+.a4-page {
+  width: 100%;
+  max-width: 210mm;
+  min-height: 297mm;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+  background: #ffffff;
+  color: #111827;
+  margin-left: auto;
+  margin-right: auto;
+  border-radius: 4px;
+}
+
+@page {
+  size: 210mm 297mm;
+  margin: 0;
+}
+
+@media print {
+  /* 1. Global Print Canvas Reset */
+  *, *::before, *::after {
+    box-sizing: border-box !important;
+    text-shadow: none !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 210mm !important;
+    min-height: 297mm !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    overflow: visible !important;
+  }
+
+  /* 2. Absolute exclusion of ALL Application Navigation, Sidebars, Headers, Toolbars, and Controls */
+  header:not(#resume-a4-document *),
+  aside:not(#resume-a4-document *),
+  nav:not(#resume-a4-document *),
+  footer:not(#resume-a4-document *),
+  .no-print,
+  [data-no-print="true"],
+  [role="banner"]:not(#resume-a4-document *),
+  [role="navigation"]:not(#resume-a4-document *),
+  [role="dialog"],
+  [aria-label*="navigation" i],
+  .theme-toggle,
+  #user-profile-modal {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    width: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    position: absolute !important;
+    left: -9999px !important;
+    top: -9999px !important;
+    pointer-events: none !important;
+  }
+
+  /* Guarantee resume document children are never hidden by print resets */
+  #resume-a4-document header,
+  #resume-a4-document aside,
+  #resume-a4-document section,
+  #resume-a4-document article {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    pointer-events: auto !important;
+  }
+
+  /* 3. Strip all application shells, layout wrappers, grids, flex containers */
+  body > div,
+  body > div > div,
+  main,
+  main > div,
+  .max-w-7xl,
+  .resume-builder-page-container,
+  .resume-builder-main-grid,
+  .resume-preview-column,
+  .min-h-screen,
+  .space-y-6 {
+    display: block !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    border: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    float: none !important;
+  }
+
+  /* 4. Completely reset the scrollable preview viewport container so it does not constrain or clip */
+  div[role="region"][aria-label="A4 Resume Preview Viewport"],
+  .resume-preview-viewport,
+  #resume-print-viewport,
+  .max-h-\[820px\] {
+    display: block !important;
+    position: static !important;
+    max-height: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    width: 100% !important;
+  }
+
+  /* 5. Clean, Full A4 Document Container */
+  .preview-scale-wrapper {
+    display: block !important;
+    position: static !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    transform: none !important;
+  }
+
+  #resume-a4-document-wrapper {
+    display: block !important;
+    position: static !important;
+    transform: none !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 297mm !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    top: auto !important;
+    left: auto !important;
+  }
+
+  #resume-a4-document,
+  .a4-page {
+    display: flex !important;
+    flex-direction: column !important;
+    position: relative !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 297mm !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  /* 6. Page-break handling */
+  section,
+  .resume-section {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .resume-entry,
+  .resume-item,
+  article,
+  li {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  h1, h2, h3, h4 {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+}
+
+/* When print preparation is active, immediately hide all application headers & sidebars (excluding resume document children) */
+body.resume-exporting header:not(#resume-a4-document *),
+body.resume-exporting aside:not(#resume-a4-document *),
+body.resume-exporting nav:not(#resume-a4-document *),
+body.resume-exporting .no-print {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* Accessibility: respect user prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

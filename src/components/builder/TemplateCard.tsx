@@ -1,0 +1,146 @@
+'use client';
+
+import React from 'react';
+import { ResumeTemplateInfo, ResumeTemplateId, ResumeData } from '@/types/resume';
+import { ResumeRenderer } from './templates/ResumeRenderer';
+import { Check, Eye, Sparkles, ShieldCheck } from 'lucide-react';
+
+export function TemplateCard({
+  template,
+  isSelected,
+  onSelect,
+  onPreview,
+  previewData,
+}: {
+  template: ResumeTemplateInfo;
+  isSelected: boolean;
+  onSelect: (id: ResumeTemplateId) => void;
+  onPreview: (id: ResumeTemplateId) => void;
+  previewData: ResumeData;
+}) {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [scale, setScale] = React.useState<number>(0.32);
+
+  React.useEffect(() => {
+    if (!containerRef.current) return;
+    const updateScale = () => {
+      if (containerRef.current) {
+        const w = containerRef.current.clientWidth;
+        if (w > 0) {
+          setScale(w / 794);
+        }
+      }
+    };
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      id={`template-card-${template.id}`}
+      data-template-id={template.id}
+      className={`group relative flex flex-col justify-between rounded-xl border transition-all duration-150 overflow-hidden ${
+        isSelected
+          ? 'border-[var(--accent)] bg-[var(--accent-subtle)] ring-1 ring-[var(--accent)]'
+          : 'border-[var(--border-color)] bg-[var(--bg-card)] hover:border-[var(--border-hover)]'
+      }`}
+    >
+      {/* Top Details & Badges */}
+      <div className="p-3.5 pb-2">
+        <div className="flex items-center justify-between gap-1.5 mb-1">
+          <h3 className="text-xs font-semibold text-[var(--text-primary)] truncate">
+            {template.name}
+          </h3>
+          {template.isAtsFriendly ? (
+            <span
+              className="inline-flex items-center gap-1 text-[9.5px] font-medium text-[var(--color-success)] bg-[var(--color-success)]/10 border border-[var(--color-success)]/20 px-2 py-0.5 rounded shrink-0"
+              title="Optimized for Applicant Tracking Systems"
+            >
+              <ShieldCheck className="w-3 h-3 text-[var(--color-success)]" />
+              ATS-Friendly
+            </span>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1 text-[9.5px] font-medium text-[var(--accent)] bg-[var(--accent-subtle)] border border-[var(--border-color)] px-2 py-0.5 rounded shrink-0"
+              title="Modern styling with creative visual accents"
+            >
+              <Sparkles className="w-3 h-3 text-[var(--accent)]" />
+              Creative
+            </span>
+          )}
+        </div>
+        <p className="text-[10.5px] text-[var(--text-secondary)] line-clamp-1 mb-1">
+          {template.styleDescription}
+        </p>
+      </div>
+
+      {/* Miniature Live A4 Representation (Actual Render, Proportional Fit) */}
+      <div className="px-3.5 py-1">
+        <div
+          id={`template-preview-${template.id}`}
+          ref={containerRef}
+          onClick={() => onSelect(template.id)}
+          className="relative w-full aspect-[210/297] rounded-lg overflow-hidden border border-slate-300 dark:border-slate-800 bg-white shadow-sm cursor-pointer select-none group-hover:shadow-md transition-shadow"
+          title={`Click to select ${template.name}`}
+        >
+          {/* Scaled Live Renderer */}
+          <div
+            className="absolute top-0 left-0 w-[794px] h-[1123px] origin-top-left pointer-events-none select-none bg-white flex flex-col"
+            style={{
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+            }}
+          >
+            <ResumeRenderer data={previewData} templateId={template.id} isMiniPreview={false} />
+          </div>
+
+          {/* Hover Overlay */}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center">
+            {isSelected && (
+              <div className="absolute top-2 right-2 bg-[var(--accent)] text-white p-1 rounded-full shadow-md z-10">
+                <Check className="w-3.5 h-3.5" />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Card Actions */}
+      <div className="p-3 pt-2 mt-auto border-t border-[var(--border-color)] flex items-center gap-2">
+        <button
+          id={`btn-preview-template-${template.id}`}
+          type="button"
+          onClick={() => onPreview(template.id)}
+          className="flex-1 py-1.5 px-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-elevated)] text-[var(--text-primary)] text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+          title="Full Preview of this template"
+        >
+          <Eye className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
+          Preview
+        </button>
+
+        <button
+          id={`btn-select-template-${template.id}`}
+          type="button"
+          onClick={() => onSelect(template.id)}
+          className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+            isSelected
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white shadow-sm'
+          }`}
+          title="Select this template"
+        >
+          {isSelected ? (
+            <>
+              <Check className="w-3.5 h-3.5" />
+              Selected
+            </>
+          ) : (
+            'Use Template'
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}

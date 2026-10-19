@@ -1,4 +1,4 @@
-"""
+﻿"""
 Smart Resume AI - Main Application
 """
 import time
@@ -592,7 +592,7 @@ class ResumeApp:
 
     def render_builder(self):
         """Render the Resume Builder page"""
-        from pages.builder_page import render_builder_page
+        from legacy_python_pages.builder_page import render_builder_page
         render_builder_page(self)
 
     def render_about(self):
@@ -630,7 +630,7 @@ class ResumeApp:
 
     def render_analyzer(self):
         """Render the resume analyzer page"""
-        from pages.analyzer_page import render_analyzer_page
+        from legacy_python_pages.analyzer_page import render_analyzer_page
         render_analyzer_page(self)
 
     def render_home(self):
