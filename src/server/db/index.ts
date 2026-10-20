@@ -8,7 +8,49 @@ export type { DatabaseClient };
 let dbInstance: DatabaseClient | null = null;
 let isInitialized = false;
 
-const SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || 'smart_resume_ai_super_secret_admin_jwt_key_2026';
+/**
+ * Development-only fallback secret strictly restricted to non-production environments.
+ * IN PRODUCTION: This fallback is NEVER used; ADMIN_SESSION_SECRET must be explicitly provided with >= 32 characters.
+ */
+const DEV_ONLY_FALLBACK_SECRET = 'dev-only-secret-smart-resume-ai-do-not-use-in-production-min-32-chars';
+
+/**
+ * Centralized function to retrieve and validate ADMIN_SESSION_SECRET.
+ *
+ * Requirements:
+ * 1. In production (NODE_ENV === 'production' or VERCEL):
+ *    - Strictly requires ADMIN_SESSION_SECRET to exist and contain at least 32 characters.
+ *    - If missing, empty, or < 32 characters, fails closed (returns null).
+ *    - Never generates or substitutes a predictable default in production.
+ * 2. Outside production (development / test):
+ *    - Uses configured ADMIN_SESSION_SECRET if provided and valid (>= 32 chars).
+ *    - If missing or empty, allows a development-only fallback.
+ *    - If configured but < 32 characters, fails closed (returns null) to reject weak secrets.
+ */
+export function getAdminSessionSecret(): string | null {
+  const isProduction = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
+  const rawSecret = process.env.ADMIN_SESSION_SECRET;
+  const secret = typeof rawSecret === 'string' ? rawSecret.trim() : '';
+
+  if (isProduction) {
+    if (!secret || secret.length < 32) {
+      return null;
+    }
+    return secret;
+  }
+
+  // Outside production:
+  if (secret) {
+    if (secret.length < 32) {
+      return null;
+    }
+    return secret;
+  }
+
+  return DEV_ONLY_FALLBACK_SECRET;
+}
+
+export const getValidatedSessionSecret = getAdminSessionSecret;
 
 /**
  * Returns the active database instance (PostgreSQL on Vercel/production, SQLite in local development).
@@ -452,49 +494,130 @@ export function verifyPassword(password: string, storedHash: string): boolean {
   }
 }
 
-export function createSessionToken(admin: { id: string; email: string; role: string }): string {
+export function createSessionToken(userOrAdmin: { id: string; email: string; role: string }): string {
+  const secret = getAdminSessionSecret();
+  if (!secret) {
+    throw new Error(
+      'Session token creation failed: ADMIN_SESSION_SECRET is missing or invalid in production environment (minimum 32 characters required).'
+    );
+  }
+
   const payload = {
-    sub: admin.id,
-    email: admin.email,
-    role: admin.role,
+    sub: userOrAdmin.id,
+    email: userOrAdmin.email,
+    role: userOrAdmin.role,
     iat: Date.now(),
     exp: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
   };
   const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const signature = crypto
-    .createHmac('sha256', SESSION_SECRET)
+    .createHmac('sha256', secret)
     .update(data)
     .digest('base64url');
   return `${data}.${signature}`;
 }
 
-export function verifySessionToken(token: string): { sub: string; email: string; role: string } | null {
+export function verifySessionToken(token: string | undefined | null): {
+  sub: string;
+  email: string;
+  role: string;
+  iat: number;
+  exp: number;
+} | null {
+  if (!token || typeof token !== 'string') return null;
+
+  const secret = getAdminSessionSecret();
+  if (!secret) {
+    // In production with missing or invalid secret, fail closed: no token can be authenticated
+    return null;
+  }
+
   try {
-    const parts = token.split('.');
+    const parts = token.trim().split('.');
     if (parts.length !== 2) return null;
     const [data, signature] = parts;
+    if (!data || !signature) return null;
 
     const expectedSignature = crypto
-      .createHmac('sha256', SESSION_SECRET)
+      .createHmac('sha256', secret)
       .update(data)
       .digest('base64url');
 
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+    const signatureBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expectedSignature);
+
+    if (signatureBuffer.length !== expectedBuffer.length) {
+      return null;
+    }
+
+    if (!crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
       return null;
     }
 
     const payload = JSON.parse(Buffer.from(data, 'base64url').toString('utf-8'));
-    if (payload.exp && Date.now() > payload.exp) {
+    if (!payload || typeof payload !== 'object') {
       return null;
     }
 
-    return payload;
+    // Require non-empty string sub
+    if (typeof payload.sub !== 'string' || !payload.sub.trim()) {
+      return null;
+    }
+
+    // Require valid, explicitly allowed role
+    if (payload.role !== 'USER' && payload.role !== 'ADMIN') {
+      return null;
+    }
+
+    // Require numeric, finite, positive iat and exp claims
+    if (
+      typeof payload.iat !== 'number' ||
+      !Number.isFinite(payload.iat) ||
+      typeof payload.exp !== 'number' ||
+      !Number.isFinite(payload.exp) ||
+      payload.iat <= 0 ||
+      payload.exp <= 0
+    ) {
+      return null;
+    }
+
+    // Reject tokens where expiration is at or before issuance
+    if (payload.exp <= payload.iat) {
+      return null;
+    }
+
+    const now = Date.now();
+    const CLOCK_SKEW_TOLERANCE_MS = 60 * 1000; // 60 seconds tolerance for clock skew
+
+    // Reject future-issued tokens beyond clock-skew tolerance
+    if (payload.iat > now + CLOCK_SKEW_TOLERANCE_MS) {
+      return null;
+    }
+
+    // Reject expired tokens
+    if (now > payload.exp) {
+      return null;
+    }
+
+    return {
+      sub: payload.sub.trim(),
+      email: typeof payload.email === 'string' ? payload.email.trim() : '',
+      role: payload.role,
+      iat: payload.iat,
+      exp: payload.exp,
+    };
   } catch {
     return null;
   }
 }
 
-export function verifyAdminToken(token: string | undefined | null): { sub: string; email: string; role: string } | null {
+export function verifyAdminToken(token: string | undefined | null): {
+  sub: string;
+  email: string;
+  role: string;
+  iat: number;
+  exp: number;
+} | null {
   if (!token) return null;
   const verified = verifySessionToken(token);
   if (!verified || verified.role !== 'ADMIN') return null;

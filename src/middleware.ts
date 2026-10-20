@@ -1,26 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { verifySessionToken } from '@/lib/sessionAuth';
 
-function getTokenPayload(token: string | undefined): any | null {
-  if (!token) return null;
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 2) return null;
-    const json = Buffer.from(parts[0], 'base64url').toString('utf8');
-    const payload = JSON.parse(json);
-    if (!payload.exp || Date.now() > payload.exp) return null;
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const adminCookie = request.cookies.get('sra_admin_session')?.value;
   const userCookie = request.cookies.get('sra_user_session')?.value;
 
-  const adminPayload = getTokenPayload(adminCookie);
-  const userPayload = getTokenPayload(userCookie);
+  // Cryptographically verify token signatures and expiration before trusting any session claims
+  const adminPayload = await verifySessionToken(adminCookie);
+  const userPayload = await verifySessionToken(userCookie);
 
   const hasValidAdminSession = Boolean(adminPayload && adminPayload.role === 'ADMIN');
   const hasValidUserSession = Boolean(userPayload && (userPayload.role === 'USER' || userPayload.role === 'ADMIN'));
@@ -34,17 +22,25 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Public Auth Routes & APIs
+  // 2. Public Legal & Compliance Pages (Accessible without authentication)
+  const isPublicLegalPage = pathname === '/privacy' || pathname === '/terms';
+  if (isPublicLegalPage) {
+    return NextResponse.next();
+  }
+
+  // 3. Public Auth Routes & APIs
   const isUserAuthPage = pathname === '/login' || pathname === '/register';
   const isAdminAuthPage = pathname === '/admin/login';
-  const isPublicAuthApi =
-    pathname.startsWith('/api/auth/login') ||
-    pathname.startsWith('/api/auth/register') ||
-    pathname.startsWith('/api/auth/logout') ||
-    pathname.startsWith('/api/auth/me') ||
-    pathname.startsWith('/api/admin/auth/login') ||
-    pathname.startsWith('/api/admin/auth/logout') ||
-    pathname.startsWith('/api/admin/auth/me');
+  const PUBLIC_AUTH_APIS = new Set([
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/logout',
+    '/api/auth/me',
+    '/api/admin/auth/login',
+    '/api/admin/auth/logout',
+  ]);
+  const normalizedPath = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
+  const isPublicAuthApi = PUBLIC_AUTH_APIS.has(normalizedPath);
 
   if (isPublicAuthApi) {
     return NextResponse.next();

@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:regression": "node scripts/test_auth_and_theme_regression.mjs",
+    "test:security": "npx tsx scripts/test_session_secret_security.mjs",
+    "test:p0-p1": "npx tsx scripts/test_p0_p1_security_fixes.mjs",
     "db:migrate:postgres": "node scripts/migrate_sqlite_to_postgres.mjs"
   },
   "dependencies": {

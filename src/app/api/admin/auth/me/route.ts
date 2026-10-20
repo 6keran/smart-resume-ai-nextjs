@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifySessionToken } from '@/lib/db';
+import { verifyAdminToken } from '@/lib/db';
 
 export async function GET() {
   try {
@@ -11,8 +11,8 @@ export async function GET() {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const payload = verifySessionToken(token);
-    if (!payload) {
+    const payload = verifyAdminToken(token);
+    if (!payload || payload.role !== 'ADMIN') {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
