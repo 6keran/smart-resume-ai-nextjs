@@ -228,7 +228,12 @@ export default function AdminLoginPage() {
     <div className="min-h-screen w-full flex items-center justify-center p-4 bg-[var(--bg-primary)] text-[var(--text-primary)] relative overflow-hidden">
       {/* Top Bar with Theme Toggle */}
       <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-30 flex items-center gap-2">
-        <ThemeToggle />
+        <div className="sm:hidden">
+          <ThemeToggle variant="icon" />
+        </div>
+        <div className="hidden sm:block">
+          <ThemeToggle variant="segmented" />
+        </div>
       </div>
 
       {/* Subtle Background Pattern */}

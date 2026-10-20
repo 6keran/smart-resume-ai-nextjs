@@ -8,26 +8,41 @@ import {
   X,
   RotateCcw,
   Sparkles,
-  ArrowRight,
   ShieldCheck,
-  Layers,
   FileEdit,
-  TrendingUp,
+  FileText,
+  Info,
+  CheckCircle2,
+  Edit2,
 } from 'lucide-react';
-import { useResume } from '@/context/ResumeContext';
-import { GlassCard } from '@/components/ui/GlassCard';
+import { useResume, isImprovementAppliedToResume } from '@/context/ResumeContext';
 
 export default function ResumeImproverPage() {
   const {
     resumeData,
     improvements,
+    setImprovements,
     acceptImprovement,
     rejectImprovement,
     regenerateImprovement,
+    editImprovement,
+    saveState,
+    saveError,
+    saveActiveResume,
   } = useResume();
 
   const [activeTab, setActiveTab] = useState<'all' | 'summary' | 'experience' | 'projects' | 'skills' | 'education'>('all');
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+  const [editingSuggestionId, setEditingSuggestionId] = useState<string | null>(null);
+  const [editTextValue, setEditTextValue] = useState<string>('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3200);
+  };
 
   const filtered =
     activeTab === 'all'
@@ -35,32 +50,94 @@ export default function ResumeImproverPage() {
       : improvements.filter((imp) => imp.section === activeTab);
 
   const handleRegenerate = async (id: string) => {
-    setRegeneratingId(id);
-    await regenerateImprovement(id);
-    setRegeneratingId(null);
+    try {
+      setRegeneratingId(id);
+      const success = await regenerateImprovement(id);
+      if (success) {
+        triggerToast('Alternative phrasing generated.');
+      } else {
+        triggerToast('Unable to regenerate alternative at this time.');
+      }
+    } catch {
+      triggerToast('Unable to regenerate alternative at this time.');
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
+
+  const handleApply = async (id: string, label: string) => {
+    const success = await acceptImprovement(id);
+    if (success) {
+      triggerToast(`Applied suggestion for "${label}" and saved to your resume.`);
+    } else {
+      triggerToast(`Could not save suggestion for "${label}". Please check your network and retry.`);
+    }
+  };
+
+  const handleSaveEdit = async (id: string, applyImmediately: boolean = false) => {
+    const trimmed = editTextValue.trim();
+    if (!trimmed) return;
+    editImprovement(id, trimmed);
+    setEditingSuggestionId(null);
+    if (applyImmediately) {
+      const ok = await acceptImprovement(id);
+      if (ok) {
+        triggerToast('Updated phrasing and saved to your resume.');
+      } else {
+        triggerToast('Updated suggestion wording. Click "Apply" to save to resume.');
+      }
+    } else {
+      triggerToast('Updated suggestion wording.');
+    }
   };
 
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[var(--text-primary)] text-[var(--bg-primary)] px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-[var(--border-color)] animate-fade-in text-xs font-semibold">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border-color)] pb-6">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-medium bg-[var(--accent-subtle)] text-[var(--accent)] border border-[var(--border-color)] mb-2">
-            <Wand2 className="w-3.5 h-3.5" />
-            Factual Impact Enhancer
-          </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] tracking-tight">
             Resume Improver
           </h1>
           <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1">
-            Compare original phrasing against AI-optimized alternatives side-by-side with zero factual invention.
+            Compare original phrasing against proposed improvements and apply changes directly to your resume.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
+          {saveState === 'saving' && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] font-medium">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              Saving to cloud...
+            </span>
+          )}
+          {saveState === 'saved' && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-500 font-medium">
+              <Check className="w-3.5 h-3.5" />
+              Changes saved
+            </span>
+          )}
+          {saveState === 'error' && (
+            <button
+              onClick={() => saveActiveResume()}
+              className="inline-flex items-center gap-1.5 text-xs text-rose-500 hover:text-rose-400 font-medium cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Retry Save
+            </button>
+          )}
+
           <Link
             href="/builder"
-            className="inline-flex items-center gap-2 h-[42px] px-4 rounded-lg bg-[var(--accent)] text-white text-xs font-medium hover:bg-[var(--accent-hover)] transition-all shadow-sm"
+            className="inline-flex items-center gap-2 h-[42px] px-4 rounded-lg bg-[var(--accent)] text-white text-xs font-semibold hover:bg-[var(--accent-hover)] active:scale-95 transition-all duration-150 shadow-xs"
           >
             <FileEdit className="w-4 h-4" />
             Apply to Resume Builder
@@ -68,15 +145,15 @@ export default function ResumeImproverPage() {
         </div>
       </div>
 
-      {/* Safety & Integrity Guarantee Banner */}
-      <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex items-start gap-3">
-        <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+      {/* Content Guideline Note */}
+      <div className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] flex items-start gap-3 shadow-xs">
+        <Info className="w-4 h-4 text-[var(--accent)] shrink-0 mt-0.5" />
         <div className="text-xs leading-relaxed">
           <strong className="text-[var(--text-primary)] block font-semibold mb-0.5">
-            Strict Factual Integrity Guaranteed
+            Content Guidelines
           </strong>
           <span className="text-[var(--text-secondary)]">
-            Our AI model optimizes sentence structure, quantifiable impact metrics, and action verbs while preserving your true employment history, dates, company names, and technologies.
+            Suggestions focus on concise phrasing and action verbs while keeping your actual employment history, titles, and technical skills intact.
           </span>
         </div>
       </div>
@@ -87,9 +164,9 @@ export default function ResumeImproverPage() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 active:scale-95 whitespace-nowrap cursor-pointer ${
               activeTab === tab
-                ? 'bg-[var(--accent)] text-white shadow-sm'
+                ? 'bg-[var(--accent)] text-white shadow-xs'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]'
             }`}
           >
@@ -122,35 +199,47 @@ export default function ResumeImproverPage() {
         </div>
       ) : (
         <div className="space-y-6">
-        {filtered.map((item) => {
-          const isPending = item.status === 'pending';
+        {filtered.map((item, idx) => {
           const isAccepted = item.status === 'accepted';
           const isRejected = item.status === 'rejected';
+          const isAppliedToResume = isImprovementAppliedToResume(item, resumeData);
+          const isEditing = editingSuggestionId === item.id;
 
           return (
-            <GlassCard key={item.id} className="p-6 space-y-4">
-              {/* Card Meta Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[var(--border-color)]">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-[var(--bg-secondary)] text-[var(--accent)]">
+            <div
+              key={item.id}
+              className={`rounded-xl border p-5 sm:p-6 transition-all space-y-4 bg-[var(--bg-card)] ${
+                isRejected
+                  ? 'border-[var(--border-color)] opacity-60'
+                  : isAppliedToResume
+                  ? 'border-[var(--border-color)] shadow-sm'
+                  : 'border-[var(--border-color)] hover:border-[var(--border-hover)]'
+              }`}
+            >
+              {/* Card Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-[var(--border-color)]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-5 h-5 rounded bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] text-[11px] font-bold flex items-center justify-center">
+                    {idx + 1}
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border-color)]">
                     {item.section}
                   </span>
-                  <span className="text-xs font-bold text-[var(--text-primary)]">
+                  <span className="text-xs font-semibold text-[var(--text-primary)]">
                     {item.field}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
-                    {item.metricImpact}
-                  </span>
-                  {isAccepted && (
-                    <span className="text-xs font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">
-                      Accepted
+                  {isAppliedToResume && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-medium text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--border-color)]">
+                      <Check className="w-3 h-3 text-[var(--accent)]" />
+                      Applied
                     </span>
                   )}
                   {isRejected && (
-                    <span className="text-xs font-bold text-rose-400 bg-rose-500/20 px-2 py-0.5 rounded">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-medium text-[var(--text-muted)] bg-[var(--bg-secondary)] border border-[var(--border-color)]">
+                      <X className="w-3 h-3 text-[var(--text-muted)]" />
                       Dismissed
                     </span>
                   )}
@@ -158,54 +247,103 @@ export default function ResumeImproverPage() {
               </div>
 
               {/* Split Screen Comparison UI */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Left: Original Content */}
-                <div className="p-4 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] space-y-2 text-left">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-                      Original Content
-                    </span>
-                    <span className="text-[10px] text-[var(--text-secondary)] font-mono">
-                      Current
-                    </span>
+                <div className="p-4 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between pb-1 border-b border-[var(--border-color)]/60">
+                      <span className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
+                        Current Phrasing
+                      </span>
+                      <span className="text-[10px] text-[var(--text-muted)] font-mono">
+                        Extracted Text
+                      </span>
+                    </div>
+                    <div className="text-xs text-[var(--text-primary)] font-mono leading-relaxed bg-[var(--bg-card)] p-3 rounded-md border border-[var(--border-color)]/70 whitespace-pre-wrap min-h-[64px]">
+                      {item.originalContent || 'No existing text recorded for this section.'}
+                    </div>
                   </div>
-                  <p className="text-xs leading-relaxed text-[var(--text-secondary)] font-medium">
-                    {item.originalContent}
-                  </p>
+
+                  <div className="text-[11px] text-[var(--text-secondary)] leading-relaxed pt-2.5 border-t border-[var(--border-color)]/60 flex items-start gap-1.5">
+                    <Info className="w-3.5 h-3.5 text-[var(--accent)] shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold text-[var(--text-primary)]">Observation: </span>
+                      <span>{item.reasoning}</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Right: AI Improved Content */}
-                <div className="p-4 rounded-lg bg-[var(--accent-subtle)] border border-[var(--border-color)] space-y-2 text-left relative overflow-hidden">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)] flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" />
-                      AI Improved Content
-                    </span>
-                    <span className="text-[10px] text-[var(--color-success)] font-medium">
-                      Enhanced ATS Impact
-                    </span>
+                <div className="p-4 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between pb-1 border-b border-[var(--border-color)]/60">
+                      <span className="text-[11px] font-semibold text-[var(--accent)] uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-[var(--accent)]" />
+                        Proposed AI Alternative
+                      </span>
+                      {!isEditing && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingSuggestionId(item.id);
+                            setEditTextValue(item.improvedContent);
+                          }}
+                          className="text-[11px] font-medium text-[var(--accent)] hover:underline inline-flex items-center gap-1 active:scale-95 transition-all duration-150 cursor-pointer"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          Edit
+                        </button>
+                      )}
+                    </div>
+
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <textarea
+                          rows={3}
+                          value={editTextValue}
+                          onChange={(e) => setEditTextValue(e.target.value)}
+                          className="w-full p-2.5 rounded-md bg-[var(--bg-card)] border border-[var(--accent)] text-xs text-[var(--text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/20 transition-all duration-150"
+                          placeholder="Edit suggested wording..."
+                        />
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingSuggestionId(null)}
+                            className="px-2.5 py-1 rounded-md text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)] border border-[var(--border-color)] active:scale-95 transition-all duration-150 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEdit(item.id, false)}
+                            className="px-3 py-1 rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold active:scale-95 transition-all duration-150 cursor-pointer shadow-xs"
+                          >
+                            Save Changes
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-[var(--text-primary)] leading-relaxed bg-[var(--bg-card)] p-3 rounded-md border border-[var(--border-color)]/70 whitespace-pre-wrap font-medium min-h-[64px]">
+                        {item.improvedContent}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-xs leading-relaxed text-[var(--text-primary)] font-medium">
-                    {item.improvedContent}
-                  </p>
+
+                  <div className="text-[11px] text-[var(--text-muted)] leading-relaxed pt-2.5 border-t border-[var(--border-color)]/60 flex items-start gap-1.5">
+                    <span className="font-semibold text-[var(--text-secondary)]">Guideline: </span>
+                    <span>Phrased with clear active verbs and relevant domain skills without inventing experience.</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Reasoning Description */}
-              <div className="p-3 rounded-lg bg-[var(--bg-elevated)] text-[11px] text-[var(--text-secondary)] text-left flex items-start gap-2">
-                <TrendingUp className="w-4 h-4 text-[var(--accent)] shrink-0 mt-0.5" />
-                <span>
-                  <strong className="text-[var(--text-primary)]">Why this improves score: </strong>
-                  {item.reasoning}
-                </span>
-              </div>
-
               {/* Action Buttons: Accept / Reject / Regenerate */}
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="pt-2 flex flex-wrap items-center justify-end gap-2">
                 <button
+                  type="button"
                   onClick={() => handleRegenerate(item.id)}
                   disabled={regeneratingId === item.id}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)] text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] hover:bg-[var(--bg-secondary)] text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] active:scale-95 transition-all duration-150 disabled:opacity-50 cursor-pointer"
                 >
                   <RotateCcw
                     className={`w-3.5 h-3.5 ${regeneratingId === item.id ? 'animate-spin' : ''}`}
@@ -214,32 +352,42 @@ export default function ResumeImproverPage() {
                 </button>
 
                 <button
-                  onClick={() => rejectImprovement(item.id)}
-                  disabled={isRejected}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                  type="button"
+                  onClick={() => {
+                    if (isRejected) {
+                      setImprovements((prev) =>
+                        prev.map((imp) => (imp.id === item.id ? { ...imp, status: 'pending' } : imp))
+                      );
+                      triggerToast('Suggestion restored.');
+                    } else {
+                      rejectImprovement(item.id);
+                      triggerToast('Suggestion dismissed.');
+                    }
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium active:scale-95 transition-all duration-150 cursor-pointer ${
                     isRejected
-                      ? 'border-rose-500/40 bg-rose-500/10 text-rose-400'
-                      : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:text-rose-400 hover:border-rose-500/40'
+                      ? 'border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-muted)]'
+                      : 'border-[var(--border-color)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:text-rose-500 hover:border-rose-300 dark:hover:border-rose-800'
                   }`}
                 >
                   <X className="w-3.5 h-3.5" />
-                  Dismiss
+                  {isRejected ? 'Restore' : 'Dismiss'}
                 </button>
 
                 <button
-                  onClick={() => acceptImprovement(item.id)}
-                  disabled={isAccepted}
-                  className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    isAccepted
-                      ? 'bg-emerald-500 text-white shadow-sm'
-                      : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white shadow-sm'
+                  type="button"
+                  onClick={() => handleApply(item.id, item.field)}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold active:scale-95 transition-all duration-150 cursor-pointer ${
+                    isAppliedToResume
+                      ? 'border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)]'
+                      : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white shadow-xs'
                   }`}
                 >
                   <Check className="w-3.5 h-3.5" />
-                  {isAccepted ? 'Applied' : 'Accept Improvement'}
+                  {isAppliedToResume ? 'Re-Apply to Resume' : 'Apply to Resume'}
                 </button>
               </div>
-            </GlassCard>
+            </div>
           );
         })}
         </div>
@@ -247,3 +395,4 @@ export default function ResumeImproverPage() {
     </div>
   );
 }
+

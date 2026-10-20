@@ -35,7 +35,7 @@ export default async function UserImprovementsPage() {
             Resume Improvements
           </h1>
           <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1">
-            Verified ATS wording upgrades and formulation enhancements grounded strictly in your actual resume facts ({improvements.length} total).
+            Review saved wording improvements across your resumes ({improvements.length} total).
           </p>
         </div>
         <Link
@@ -56,7 +56,7 @@ export default async function UserImprovementsPage() {
             No improvements recorded yet
           </h3>
           <p className="text-xs text-[var(--text-secondary)] max-w-sm mx-auto mt-1 mb-6">
-            Run a resume analysis or use the AI Resume Improver to generate high-impact, ATS-optimized bullet points and summary upgrades.
+            Run a resume analysis or use the Resume Improver to generate concise bullet points and summary phrasing.
           </p>
           <Link
             href="/analyzer"

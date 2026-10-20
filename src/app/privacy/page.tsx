@@ -179,7 +179,12 @@ export default function PrivacyPolicyPage() {
             <div className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--card-bg)]">
               <p className="text-xs font-semibold text-[var(--text-primary)]">Data Protection Officer</p>
               <p className="text-xs text-[var(--text-secondary)] mt-1">Smart Resume AI Engineering Team</p>
-              <p className="text-xs text-[var(--accent)] mt-1">support@smartresume.ai</p>
+              <a
+                href="mailto:kiran81232@gmail.com"
+                className="text-xs text-[var(--accent)] hover:underline inline-block mt-1"
+              >
+                kiran81232@gmail.com
+              </a>
             </div>
           </section>
         </div>

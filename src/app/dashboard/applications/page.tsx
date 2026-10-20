@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Send,
   Plus,
@@ -17,6 +18,8 @@ import {
   AlertCircle,
   CheckCircle2,
   X,
+  FileText,
+  Bookmark,
 } from 'lucide-react';
 
 interface JobApplication {
@@ -29,8 +32,18 @@ interface JobApplication {
   source: string | null;
   job_url: string | null;
   applied_at: string;
-  status: 'Saved' | 'Applied' | 'Interview' | 'Rejected' | 'Offer' | 'Withdrawn';
+  status:
+    | 'Saved'
+    | 'Ready to apply'
+    | 'Application pending'
+    | 'Applied'
+    | 'Interview'
+    | 'Offer'
+    | 'Rejected'
+    | 'Withdrawn';
   notes: string | null;
+  resume_id: string | null;
+  applied_confirmed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -38,6 +51,8 @@ interface JobApplication {
 const STATUS_OPTIONS = [
   'All',
   'Saved',
+  'Ready to apply',
+  'Application pending',
   'Applied',
   'Interview',
   'Offer',
@@ -45,10 +60,13 @@ const STATUS_OPTIONS = [
   'Withdrawn',
 ] as const;
 
-export default function UserApplicationsPage() {
+function ApplicationsContent() {
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get('status') || 'All';
+
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState<string>('All');
+  const [filterStatus, setFilterStatus] = useState<string>(initialStatus);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modal State
@@ -64,7 +82,7 @@ export default function UserApplicationsPage() {
   const [formSource, setFormSource] = useState('Manual');
   const [formJobUrl, setFormJobUrl] = useState('');
   const [formAppliedAt, setFormAppliedAt] = useState('');
-  const [formStatus, setFormStatus] = useState<'Saved' | 'Applied' | 'Interview' | 'Rejected' | 'Offer' | 'Withdrawn'>('Applied');
+  const [formStatus, setFormStatus] = useState<JobApplication['status']>('Applied');
   const [formNotes, setFormNotes] = useState('');
 
   const fetchApplications = async () => {
@@ -85,6 +103,13 @@ export default function UserApplicationsPage() {
   useEffect(() => {
     fetchApplications();
   }, []);
+
+  useEffect(() => {
+    const s = searchParams.get('status');
+    if (s && STATUS_OPTIONS.includes(s as any)) {
+      setFilterStatus(s);
+    }
+  }, [searchParams]);
 
   const openCreateModal = () => {
     setEditingApp(null);
@@ -114,6 +139,27 @@ export default function UserApplicationsPage() {
     setIsModalOpen(true);
   };
 
+  const handleQuickStatusChange = async (appId: string, newStatus: JobApplication['status']) => {
+    try {
+      const res = await fetch('/api/user/applications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: appId,
+          status: newStatus,
+        }),
+      });
+
+      if (res.ok) {
+        setApplications((prev) =>
+          prev.map((a) => (a.id === appId ? { ...a, status: newStatus } : a))
+        );
+      }
+    } catch (err) {
+      console.error('Failed to update status:', err);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -138,53 +184,42 @@ export default function UserApplicationsPage() {
         notes: formNotes.trim() || null,
       };
 
+      const method = editingApp ? 'PUT' : 'POST';
       const res = await fetch('/api/user/applications', {
-        method: editingApp ? 'PUT' : 'POST',
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setFormError(data.message || 'Failed to save application.');
-        setIsSaving(false);
-        return;
+        throw new Error(data.message || 'Failed to save application');
       }
 
       setIsModalOpen(false);
       await fetchApplications();
-    } catch {
-      setFormError('Connection error. Please try again.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setFormError(msg);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleStatusChange = async (appId: string, newStatus: JobApplication['status']) => {
-    try {
-      const res = await fetch('/api/user/applications', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: appId, status: newStatus }),
-      });
-      if (res.ok) {
-        setApplications((prev) =>
-          prev.map((a) => (a.id === appId ? { ...a, status: newStatus } : a))
-        );
-      }
-    } catch (err) {
-      console.error('Failed to change status:', err);
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this application record?')) {
+      return;
     }
-  };
 
-  const handleDelete = async (appId: string) => {
-    if (!confirm('Are you sure you want to remove this tracked application?')) return;
     try {
-      const res = await fetch(`/api/user/applications?id=${encodeURIComponent(appId)}`, {
+      const res = await fetch(`/api/user/applications?id=${id}`, {
         method: 'DELETE',
       });
       if (res.ok) {
-        setApplications((prev) => prev.filter((a) => a.id !== appId));
+        setApplications((prev) => prev.filter((app) => app.id !== id));
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Failed to delete application');
       }
     } catch (err) {
       console.error('Failed to delete application:', err);
@@ -194,7 +229,6 @@ export default function UserApplicationsPage() {
   const filteredApplications = applications.filter((app) => {
     const matchesStatus = filterStatus === 'All' || app.status === filterStatus;
     const matchesSearch =
-      searchQuery === '' ||
       app.job_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (app.location && app.location.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -204,24 +238,28 @@ export default function UserApplicationsPage() {
   const getStatusColor = (status: JobApplication['status']) => {
     switch (status) {
       case 'Saved':
-        return 'bg-[var(--accent-subtle)] text-[var(--accent)] border-[var(--border-color)]';
+        return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+      case 'Ready to apply':
+        return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+      case 'Application pending':
+        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
       case 'Applied':
-        return 'bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border-color)]';
+        return 'bg-blue-600/15 text-blue-400 border-blue-500/30';
       case 'Interview':
-        return 'bg-[var(--color-warning)]/10 text-[var(--color-warning)] border-[var(--color-warning)]/20';
+        return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
       case 'Offer':
-        return 'bg-[var(--color-success)]/10 text-[var(--color-success)] border-[var(--color-success)]/20';
+        return 'bg-teal-500/20 text-teal-300 border-teal-500/30';
       case 'Rejected':
-        return 'bg-[var(--color-error)]/10 text-[var(--color-error)] border-[var(--color-error)]/20';
+        return 'bg-rose-500/15 text-rose-400 border-rose-500/30';
       case 'Withdrawn':
-        return 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-[var(--border-color)]';
+        return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20';
       default:
-        return 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-[var(--border-color)]';
+        return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
     }
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in text-left">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[var(--border-color)] gap-4">
         <div>
@@ -229,7 +267,7 @@ export default function UserApplicationsPage() {
             Job Applications
           </h1>
           <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1">
-            Track, update, and manage every stage of your job hunt in one private place.
+            Track, update, and manage every stage of your job hunt ({applications.length} total records).
           </p>
         </div>
         <button
@@ -257,19 +295,33 @@ export default function UserApplicationsPage() {
 
         {/* Status Pills */}
         <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
-          {STATUS_OPTIONS.map((st) => (
-            <button
-              key={st}
-              onClick={() => setFilterStatus(st)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                filterStatus === st
-                  ? 'bg-[var(--accent)] text-white shadow-sm'
-                  : 'bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              {st}
-            </button>
-          ))}
+          {STATUS_OPTIONS.map((st) => {
+            const count =
+              st === 'All'
+                ? applications.length
+                : applications.filter((a) => a.status === st).length;
+
+            return (
+              <button
+                key={st}
+                onClick={() => setFilterStatus(st)}
+                className={`px-3 py-1 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  filterStatus === st
+                    ? 'bg-[var(--accent)] text-white shadow-sm'
+                    : 'bg-[var(--bg-card)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)]'
+                }`}
+              >
+                <span>{st}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    filterStatus === st ? 'bg-white/20 text-white' : 'bg-slate-500/10 text-slate-400'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -305,23 +357,36 @@ export default function UserApplicationsPage() {
               key={app.id}
               className="rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)]/80 hover:bg-[var(--bg-secondary)] p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-200 hover:border-[var(--accent)]/30"
             >
-              <div className="min-w-0 space-y-1">
+              <div className="min-w-0 space-y-1.5 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-bold text-[var(--text-primary)]">
                     {app.job_title}
                   </h3>
-                  <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border ${getStatusColor(app.status)}`}>
+
+                  <span
+                    className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border ${getStatusColor(
+                      app.status
+                    )}`}
+                  >
                     {app.status}
                   </span>
+
                   {app.source && (
                     <span className="text-[10px] font-medium text-[var(--text-secondary)] px-1.5 py-0.5 rounded bg-[var(--bg-card)] border border-[var(--border-color)]">
                       {app.source}
                     </span>
                   )}
+
+                  {app.applied_confirmed_at && (
+                    <span className="text-[10px] text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded font-medium border border-emerald-500/20 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Confirmed Applied
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--text-secondary)]">
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1 font-semibold text-[var(--text-primary)]">
                     <Building className="w-3.5 h-3.5 text-[var(--accent)]" />
                     {app.company}
                   </span>
@@ -333,26 +398,30 @@ export default function UserApplicationsPage() {
                   )}
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5" />
-                    Applied: {new Date(app.applied_at).toLocaleDateString()}
+                    Date: {new Date(app.applied_at).toLocaleDateString()}
                   </span>
                 </div>
 
                 {app.notes && (
-                  <p className="text-xs text-[var(--text-secondary)] bg-[var(--bg-card)] p-2.5 rounded-xl border border-[var(--border-color)] mt-2 italic">
+                  <p className="text-xs text-[var(--text-secondary)] italic bg-[var(--bg-card)]/60 px-3 py-1.5 rounded-lg border border-[var(--border-color)]/60">
                     &ldquo;{app.notes}&rdquo;
                   </p>
                 )}
               </div>
 
-              {/* Status Select & Action Buttons */}
-              <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+              {/* Status Selector & Actions */}
+              <div className="flex items-center gap-2 shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-[var(--border-color)]">
+                {/* Inline Status Dropdown */}
                 <select
                   value={app.status}
-                  onChange={(e) => handleStatusChange(app.id, e.target.value as any)}
-                  className="px-2.5 py-1.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-color)] text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] cursor-pointer"
-                  title="Update Application Status"
+                  onChange={(e) =>
+                    handleQuickStatusChange(app.id, e.target.value as JobApplication['status'])
+                  }
+                  className="text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] cursor-pointer"
                 >
                   <option value="Saved">Saved</option>
+                  <option value="Ready to apply">Ready to apply</option>
+                  <option value="Application pending">Application pending</option>
                   <option value="Applied">Applied</option>
                   <option value="Interview">Interview</option>
                   <option value="Offer">Offer</option>
@@ -365,8 +434,8 @@ export default function UserApplicationsPage() {
                     href={app.job_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent)] transition-all"
-                    title="Open Job Listing"
+                    className="p-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent)] transition-all cursor-pointer"
+                    title="View Job Listing"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
@@ -374,7 +443,7 @@ export default function UserApplicationsPage() {
 
                 <button
                   onClick={() => openEditModal(app)}
-                  className="p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent)] transition-all cursor-pointer"
+                  className="p-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent)] transition-all cursor-pointer"
                   title="Edit details"
                 >
                   <Edit2 className="w-3.5 h-3.5" />
@@ -382,8 +451,8 @@ export default function UserApplicationsPage() {
 
                 <button
                   onClick={() => handleDelete(app.id)}
-                  className="p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-red-400 hover:border-red-500/30 transition-all cursor-pointer"
-                  title="Delete Application"
+                  className="p-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:text-red-400 hover:border-red-500/30 transition-all cursor-pointer"
+                  title="Delete application"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -393,30 +462,30 @@ export default function UserApplicationsPage() {
         </div>
       )}
 
-      {/* Add / Edit Modal */}
+      {/* Create / Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-6 shadow-2xl relative">
-            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)] mb-4">
-              <h2 className="text-base font-bold text-[var(--text-primary)]">
-                {editingApp ? 'Edit Job Application' : 'Add New Job Application'}
-              </h2>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-[var(--bg-primary)] border border-[var(--border-color)] shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
+              <h3 className="text-base font-bold text-[var(--text-primary)]">
+                {editingApp ? 'Edit Job Application' : 'Track New Job Application'}
+              </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                className="p-1 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {formError && (
-              <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-xs flex items-center gap-2">
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{formError}</span>
               </div>
             )}
 
-            <form onSubmit={handleSave} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSave} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-[var(--text-primary)] mb-1">
@@ -427,21 +496,22 @@ export default function UserApplicationsPage() {
                     required
                     value={formTitle}
                     onChange={(e) => setFormTitle(e.target.value)}
-                    placeholder="e.g. Senior Software Engineer"
-                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                    placeholder="e.g. Senior Frontend Engineer"
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
                   />
                 </div>
+
                 <div>
                   <label className="block font-semibold text-[var(--text-primary)] mb-1">
-                    Company *
+                    Company Name *
                   </label>
                   <input
                     type="text"
                     required
                     value={formCompany}
                     onChange={(e) => setFormCompany(e.target.value)}
-                    placeholder="e.g. Stripe, Google, Acme Inc"
-                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                    placeholder="e.g. Stripe"
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
                   />
                 </div>
               </div>
@@ -455,22 +525,36 @@ export default function UserApplicationsPage() {
                     type="text"
                     value={formLocation}
                     onChange={(e) => setFormLocation(e.target.value)}
-                    placeholder="e.g. Remote, Bengaluru, New York"
-                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                    placeholder="e.g. San Francisco / Remote"
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
                   />
                 </div>
+
                 <div>
                   <label className="block font-semibold text-[var(--text-primary)] mb-1">
-                    Source / Platform
+                    Source
                   </label>
                   <input
                     type="text"
                     value={formSource}
                     onChange={(e) => setFormSource(e.target.value)}
-                    placeholder="e.g. LinkedIn, Indeed, Company Site"
-                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                    placeholder="e.g. LinkedIn / Naukri"
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-[var(--text-primary)] mb-1">
+                  Job Posting URL
+                </label>
+                <input
+                  type="url"
+                  value={formJobUrl}
+                  onChange={(e) => setFormJobUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full px-3 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -482,19 +566,22 @@ export default function UserApplicationsPage() {
                     type="date"
                     value={formAppliedAt}
                     onChange={(e) => setFormAppliedAt(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
                   />
                 </div>
+
                 <div>
                   <label className="block font-semibold text-[var(--text-primary)] mb-1">
-                    Current Status
+                    Status
                   </label>
                   <select
                     value={formStatus}
-                    onChange={(e) => setFormStatus(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                    onChange={(e) => setFormStatus(e.target.value as JobApplication['status'])}
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
                   >
                     <option value="Saved">Saved</option>
+                    <option value="Ready to apply">Ready to apply</option>
+                    <option value="Application pending">Application pending</option>
                     <option value="Applied">Applied</option>
                     <option value="Interview">Interview</option>
                     <option value="Offer">Offer</option>
@@ -506,42 +593,29 @@ export default function UserApplicationsPage() {
 
               <div>
                 <label className="block font-semibold text-[var(--text-primary)] mb-1">
-                  Job URL (Optional)
-                </label>
-                <input
-                  type="url"
-                  value={formJobUrl}
-                  onChange={(e) => setFormJobUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-[var(--text-primary)] mb-1">
-                  Notes / Interview Details
+                  Notes
                 </label>
                 <textarea
                   rows={3}
                   value={formNotes}
                   onChange={(e) => setFormNotes(e.target.value)}
-                  placeholder="Notes about the recruiter contact, salary range, technical interview date..."
-                  className="w-full px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] resize-none"
+                  placeholder="Recruiter contact, interview questions asked, follow-up dates..."
+                  className="w-full px-3 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border-color)]">
+              <div className="pt-2 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-[var(--border-color)] text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-5 py-2 rounded-xl bg-[var(--accent)] text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-[var(--accent)] text-white font-semibold hover:opacity-90 disabled:opacity-50 transition-all cursor-pointer flex items-center gap-1.5"
                 >
                   {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <span>{editingApp ? 'Save Changes' : 'Create Application'}</span>
@@ -552,5 +626,19 @@ export default function UserApplicationsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function UserApplicationsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="py-16 text-center text-xs text-[var(--text-secondary)]">
+          Loading application tracker...
+        </div>
+      }
+    >
+      <ApplicationsContent />
+    </Suspense>
   );
 }

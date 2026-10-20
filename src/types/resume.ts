@@ -69,25 +69,34 @@ export interface ResumeData {
 }
 
 export type ResumeTemplateId =
+  // 12 Production SaaS Templates
   | 'ats-classic'
+  | 'software-engineer'
+  | 'graduate-fresher'
+  | 'fresh-graduate'
+  | 'executive-professional'
+  | 'corporate-executive'
+  | 'data-analyst'
+  | 'ui-ux-designer'
+  | 'full-stack-developer'
+  | 'internship-applicant'
+  | 'academic-research'
+  | 'academic'
+  | 'sales-marketing'
+  | 'operations-management'
+  | 'modern-two-column'
+  | 'contemporary'
+  // Existing / Legacy references for backward compatibility
   | 'modern-professional'
   | 'minimalist'
-  | 'corporate-executive'
-  | 'software-engineer'
-  | 'fresh-graduate'
-  | 'data-analyst'
   | 'creative-professional'
   | 'compact-one-page'
-  | 'academic'
   | 'experienced-professional'
-  | 'contemporary'
-  // Reference Image Recreations
   | 'thomas-hamptone'
   | 'nick-koe'
   | 'richard-sanchez'
   | 'olivia-wilson-grid'
   | 'olivia-wilson-blush'
-  // Legacy aliases for backward compatibility
   | 'modern-ats'
   | 'tech-professional'
   | 'executive'
@@ -106,6 +115,8 @@ export interface ResumeTemplateInfo {
   atsScoreRating: number; // e.g., 99
   isPopular?: boolean;
   tags?: string[];
+  intendedUse?: string;
+  isVisualLayout?: boolean;
 }
 
 export interface AnalysisWeakness {
@@ -132,6 +143,7 @@ export interface AnalysisRecommendation {
   originalText?: string;
   improvedText?: string;
   impact: string;
+  extractedText?: string;
 }
 
 export interface PrioritizedSuggestion {
@@ -143,6 +155,19 @@ export interface PrioritizedSuggestion {
   whyItMatters: string;
   howToImprove: string;
   example?: string;
+  extractedText?: string;
+}
+
+export interface TargetJobContext {
+  title: string;
+  company: string;
+  description: string;
+}
+
+export interface MatchedSkillItem {
+  skill: string;
+  status: 'matched' | 'partial' | 'missing';
+  context?: string;
 }
 
 export interface ResumeAnalysisResult {
@@ -153,6 +178,7 @@ export interface ResumeAnalysisResult {
   sectionScore: number;
   wordCount: number;
   readabilityScore: number;
+  bulletStrengthScore?: number;
   detectedKeywords: string[];
   missingKeywords: string[];
   strengths: AnalysisStrength[];
@@ -161,6 +187,13 @@ export interface ResumeAnalysisResult {
   topSuggestions: PrioritizedSuggestion[];
   summaryFeedback: string;
   analyzedAt: string;
+  // Job-specific tailoring attributes
+  isJobSpecific?: boolean;
+  jobTitle?: string;
+  company?: string;
+  matchedSkills?: MatchedSkillItem[];
+  missingSkills?: string[];
+  resumeId?: string | null;
 }
 
 export interface ImprovementItem {
@@ -170,6 +203,50 @@ export interface ImprovementItem {
   originalContent: string;
   improvedContent: string;
   reasoning: string;
-  metricImpact: string;
+  metricImpact?: string;
   status: 'pending' | 'accepted' | 'rejected';
+  targetIndex?: number;
+  targetBulletIndex?: number;
+  isJobTailored?: boolean;
+  diff?: {
+    before: string;
+    after: string;
+  };
 }
+
+export type ResumeValidationStatus = 'valid' | 'invalid' | 'uncertain';
+
+export type ResumeValidationReasonCode =
+  | 'VALID_RESUME'
+  | 'INSUFFICIENT_SIGNALS'
+  | 'NON_RESUME_INVOICE'
+  | 'NON_RESUME_ASSIGNMENT'
+  | 'NON_RESUME_CERTIFICATE'
+  | 'NON_RESUME_REPORT'
+  | 'NON_RESUME_LEGAL_CONTRACT'
+  | 'NON_RESUME_GENERIC_TEXT'
+  | 'EMPTY_OR_CORRUPT'
+  | 'UNCERTAIN_STRUCTURE';
+
+export interface ResumeValidationSignals {
+  hasContactInfo: boolean;
+  hasExperienceOrInternship: boolean;
+  hasEducation: boolean;
+  hasSkills: boolean;
+  hasProjectsOrAchievements: boolean;
+  hasSummaryOrObjective: boolean;
+  hasChronology: boolean;
+  detectedSections: string[];
+  negativeIndicators: string[];
+}
+
+export interface ResumeValidationResult {
+  status: ResumeValidationStatus;
+  isValid: boolean;
+  confidence: number;
+  message: string;
+  reasonCode: ResumeValidationReasonCode;
+  detectedType?: string;
+  signals: ResumeValidationSignals;
+}
+

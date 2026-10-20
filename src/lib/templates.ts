@@ -4,225 +4,199 @@ export const RESUME_TEMPLATES: ResumeTemplateInfo[] = [
   {
     id: 'ats-classic',
     name: 'ATS Classic',
-    category: 'ATS Classic',
+    category: 'ATS-Friendly',
+    intendedUse: 'Corporate, Finance, Legal, Government, and high-volume ATS portals',
     description: 'Traditional single-column layout with clean serif typography, optimized for 100% compliance with applicant tracking systems.',
-    styleDescription: 'Single-column, clean typography, traditional professional layout',
+    styleDescription: 'Clean serif typography, centered header, traditional hairline rules',
     isAtsFriendly: true,
     atsScoreRating: 99,
     isPopular: true,
-    tags: ['ATS Standard', 'Single-Column', 'Traditional'],
-  },
-  {
-    id: 'modern-professional',
-    name: 'Modern Professional',
-    category: 'Professional',
-    description: 'Refined headings with left accent markers, balanced spacing, and subtle indigo touches suitable for modern corporate and tech roles.',
-    styleDescription: 'Refined headings, balanced spacing, subtle accent color',
-    isAtsFriendly: true,
-    atsScoreRating: 98,
-    isPopular: true,
-    tags: ['Modern', 'Corporate', 'Balanced'],
-  },
-  {
-    id: 'minimalist',
-    name: 'Minimalist',
-    category: 'Minimalist',
-    description: 'Swiss-inspired airy design featuring elegant typography, generous whitespace, and restrained hairline dividers.',
-    styleDescription: 'Elegant typography, generous whitespace, simple structure',
-    isAtsFriendly: true,
-    atsScoreRating: 96,
-    isPopular: false,
-    tags: ['Clean', 'Whitespace', 'Contemporary'],
-  },
-  {
-    id: 'corporate-executive',
-    name: 'Corporate Executive',
-    category: 'Executive',
-    description: 'Authoritative deep navy header and serif title hierarchy engineered for senior leaders, directors, and executives.',
-    styleDescription: 'Strong hierarchy for experienced professionals and managers',
-    isAtsFriendly: true,
-    atsScoreRating: 97,
-    isPopular: true,
-    tags: ['Leadership', 'Executive', 'High Impact'],
+    tags: ['ATS-Friendly', 'Single-Column', 'Traditional', 'High Compliance'],
   },
   {
     id: 'software-engineer',
     name: 'Software Engineer',
-    category: 'Tech',
-    description: 'Technical layout with categorized skill matrices, monospace repository pills, and structured architecture project highlights.',
-    styleDescription: 'Technical skills, projects, experience, and technologies emphasized',
+    category: 'Technical',
+    intendedUse: 'Software Engineers, Backend/Frontend Developers, Cloud & DevOps Specialists',
+    description: 'Engineering layout featuring categorized technical skills, monospace metadata badges, GitHub repositories, and architectural scale highlights.',
+    styleDescription: 'Technical skills matrix, monospace repository tags, system scale callouts',
     isAtsFriendly: true,
     atsScoreRating: 98,
     isPopular: true,
-    tags: ['Engineering', 'Code Repos', 'Monospace'],
+    tags: ['Technical', 'Engineering', 'Code Repos', 'Monospace'],
   },
   {
-    id: 'fresh-graduate',
-    name: 'Fresh Graduate',
-    category: 'Entry Level',
-    description: 'Strategic structure that prioritizes education, academic honors, GPA, and capstone projects above corporate tenure.',
-    styleDescription: 'Education, academic achievements, internships, and projects emphasized',
+    id: 'graduate-fresher',
+    name: 'Graduate / Fresher',
+    category: 'Freshers',
+    intendedUse: 'Recent College Graduates, Entry-Level Candidates, and Career Transitioners',
+    description: 'Strategic structure prioritizing degree credentials, GPA, honors, coursework, and capstone projects ahead of corporate tenure.',
+    styleDescription: 'Education & project priority, academic honors, clean single-column',
+    isAtsFriendly: true,
+    atsScoreRating: 98,
+    isPopular: true,
+    tags: ['Freshers', 'Campus Projects', 'Academic Honors', 'Entry-Level'],
+  },
+  {
+    id: 'executive-professional',
+    name: 'Executive Professional',
+    category: 'Experienced',
+    intendedUse: 'C-Suite, VP, Directors, General Managers, and Senior Department Heads',
+    description: 'Authoritative executive layout with deep charcoal header styling, strategic core competencies grid, and career progression milestones.',
+    styleDescription: 'Executive charcoal header, strategic competencies matrix, P&L progression',
     isAtsFriendly: true,
     atsScoreRating: 97,
     isPopular: true,
-    tags: ['Entry-Level', 'Campus Projects', 'Academic Honors'],
+    tags: ['Experienced', 'Leadership', 'Executive', 'P&L Management'],
   },
   {
     id: 'data-analyst',
     name: 'Data Analyst',
-    category: 'Analytical',
-    description: 'Analytical layout emphasizing data tooling (SQL, Python, BI), business intelligence pipelines, and quantified KPI achievements.',
-    styleDescription: 'Analytical skills, tools, measurable achievements, and projects',
+    category: 'Technical',
+    intendedUse: 'Data Analysts, BI Engineers, Data Scientists, and Analytics Consultants',
+    description: 'Analytical layout highlighting SQL, Python, BI tooling, business intelligence pipelines, and quantified business impact metrics.',
+    styleDescription: 'Analytical tools matrix, KPI metrics emphasis, dataset projects',
     isAtsFriendly: true,
-    atsScoreRating: 97,
+    atsScoreRating: 98,
     isPopular: false,
-    tags: ['Data & AI', 'KPIs', 'Metrics-Focused'],
+    tags: ['Technical', 'Data & AI', 'KPIs', 'BI Pipelines'],
   },
   {
-    id: 'creative-professional',
-    name: 'Creative Professional',
+    id: 'ui-ux-designer',
+    name: 'UI/UX Designer',
     category: 'Creative',
-    description: 'Artistic typography, tasteful violet accent framing, and visual project showcases for designers, product managers, and creatives.',
-    styleDescription: 'Tasteful typography and visual hierarchy while retaining readability',
-    isAtsFriendly: false,
-    atsScoreRating: 91,
-    isPopular: false,
-    tags: ['Creative', 'Portfolio', 'Visual Accent'],
+    intendedUse: 'Product Designers, UI/UX Designers, Design System Leads, and UX Researchers',
+    description: 'Typographically refined layout featuring design systems, UX research methods, Figma/portfolio links, and case-study project cards.',
+    styleDescription: 'Geometric typography, portfolio showcase, design & research skills',
+    isAtsFriendly: true,
+    atsScoreRating: 96,
+    isPopular: true,
+    tags: ['Creative', 'Design Systems', 'Figma', 'Case Studies'],
   },
   {
-    id: 'compact-one-page',
-    name: 'Compact One-Page',
-    category: 'Compact',
-    description: 'Space-optimized formatting engineered to pack comprehensive career achievements onto a single pristine page.',
-    styleDescription: 'Optimized spacing for concise resumes',
+    id: 'full-stack-developer',
+    name: 'Full Stack Developer',
+    category: 'Technical',
+    intendedUse: 'Full Stack Engineers, Web Application Architects, and Cloud Solutions Developers',
+    description: 'High-density technical layout highlighting dual frontend/backend stacks, database architectures, APIs, and live production deployments.',
+    styleDescription: 'Dual-stack skill pills, live demo & repo links, web architecture',
     isAtsFriendly: true,
     atsScoreRating: 98,
     isPopular: true,
-    tags: ['One-Page', 'Dense', 'Concise'],
+    tags: ['Technical', 'Full Stack', 'Web Architecture', 'DevOps'],
   },
   {
-    id: 'academic',
-    name: 'Academic / CV',
+    id: 'internship-applicant',
+    name: 'Internship Applicant',
+    category: 'Freshers',
+    intendedUse: 'University Students, Bootcamp Graduates, and Early Applicants seeking internships',
+    description: 'Approachable single-column format emphasizing University standing, expected graduation, coursework, hackathons, and student leadership.',
+    styleDescription: 'Balanced whitespace, coursework focus, student leadership highlights',
+    isAtsFriendly: true,
+    atsScoreRating: 98,
+    isPopular: false,
+    tags: ['Freshers', 'Internship', 'Coursework', 'Student Leadership'],
+  },
+  {
+    id: 'academic-research',
+    name: 'Academic / Research',
     category: 'Academic',
-    description: 'Formal scholarly curriculum vitae format highlighting education, research publications, grants, and teaching experience.',
-    styleDescription: 'Education, research, publications, and certifications',
-    isAtsFriendly: true,
-    atsScoreRating: 95,
-    isPopular: false,
-    tags: ['Scholarly', 'Research', 'CV Format'],
-  },
-  {
-    id: 'experienced-professional',
-    name: 'Experienced Professional',
-    category: 'Executive',
-    description: 'Longitudinal career narrative layout emphasizing progressive promotion milestones, organizational scale, and strategic leadership.',
-    styleDescription: 'Detailed experience, leadership, and career progression',
+    intendedUse: 'PhD Candidates, Postdocs, Research Scientists, Faculty, and Fellowship Applicants',
+    description: 'Formal scholarly curriculum vitae format highlighting education with thesis advisors, peer-reviewed publications, grant awards, and teaching experience.',
+    styleDescription: 'Formal Garamond/Georgia serif, numbered publication citations, dissertation focus',
     isAtsFriendly: true,
     atsScoreRating: 96,
     isPopular: false,
-    tags: ['Progression', 'Senior Tenure', 'Leadership'],
+    tags: ['Academic', 'Research', 'Scholarly CV', 'Publications'],
   },
   {
-    id: 'contemporary',
-    name: 'Contemporary',
-    category: 'Modern',
-    description: 'Modern dual-column layout with a left sidebar for skills, credentials, and contact info, and an expansive right story panel.',
-    styleDescription: 'Modern layout with restrained color accents and clear section organization',
-    isAtsFriendly: false,
-    atsScoreRating: 92,
-    isPopular: true,
-    tags: ['Dual-Column', 'Sidebar', 'Modern'],
-  },
-  {
-    id: 'thomas-hamptone',
-    name: 'Editorial Classic (Hamptone)',
-    category: 'Executive',
-    description: 'High-contrast editorial serif layout with circular portrait, dual columns, and clean horizontal hairline dividers faithfully recreating the Thomas Hamptone executive design.',
-    styleDescription: 'Editorial serif typography, circular photo, clean column dividers, refined spacing',
-    isAtsFriendly: true,
-    atsScoreRating: 98,
-    isPopular: true,
-    tags: ['Reference Design', 'Editorial', 'Executive', 'Dual-Column'],
-  },
-  {
-    id: 'nick-koe',
-    name: 'Teal Modernist (Nick Koe)',
-    category: 'Creative',
-    description: 'Dual-column design featuring bold teal accent markers, right-aligned contact column, solid teal skill pills, and portfolio showcase matching the Nick Koe photographer resume.',
-    styleDescription: 'Teal accent bars, solid skill pills, modern creative dual-column',
-    isAtsFriendly: true,
-    atsScoreRating: 95,
-    isPopular: true,
-    tags: ['Reference Design', 'Teal Badges', 'Creative', 'Portfolio'],
-  },
-  {
-    id: 'richard-sanchez',
-    name: 'Navy Timeline (Sanchez)',
-    category: 'Professional',
-    description: 'Deep navy header banner with overlapping circular portrait, cool-grey contact sidebar, and an icon-connected vertical career timeline faithfully recreating Richard Sanchez.',
-    styleDescription: 'Dark navy header, overlapping avatar, slate sidebar, vertical connected timeline',
-    isAtsFriendly: true,
-    atsScoreRating: 96,
-    isPopular: true,
-    tags: ['Reference Design', 'Navy Banner', 'Career Timeline', 'Two-Tone'],
-  },
-  {
-    id: 'olivia-wilson-grid',
-    name: 'Architectural Grid (Olivia Wilson)',
-    category: 'Modern',
-    description: 'Architectural 2x2 framed box grid layout with artistic calligraphy monogram watermark and circular bullet badges recreating the Olivia Wilson grid design.',
-    styleDescription: 'Monogram watermark, structured box grid, hairline frame borders',
+    id: 'sales-marketing',
+    name: 'Sales & Marketing',
+    category: 'Experienced',
+    intendedUse: 'Account Executives, Sales Leaders, Growth Marketers, and Business Developers',
+    description: 'High-impact commercial layout emphasizing quota attainment, revenue generation, client acquisition, and growth campaign metrics.',
+    styleDescription: 'Commercial capabilities, quota performance callouts, revenue KPIs',
     isAtsFriendly: true,
     atsScoreRating: 97,
-    isPopular: true,
-    tags: ['Reference Design', 'Framed Grid', 'Monogram Watermark', 'Structured'],
+    isPopular: false,
+    tags: ['Experienced', 'Sales & Growth', 'Quota Attainment', 'Revenue'],
   },
   {
-    id: 'olivia-wilson-blush',
-    name: 'Blush Editorial (Olivia Wilson)',
+    id: 'operations-management',
+    name: 'Operations & Management',
+    category: 'Experienced',
+    intendedUse: 'Operations Directors, Program Managers, Scrum Masters, and Supply Chain Leaders',
+    description: 'Disciplined executive structure focusing on Lean Six Sigma, Agile delivery, supply chain workflows, SLA improvements, and operational turnaround.',
+    styleDescription: 'Process & operational competencies, efficiency KPIs, PMP/CSM credentials',
+    isAtsFriendly: true,
+    atsScoreRating: 97,
+    isPopular: false,
+    tags: ['Experienced', 'Operations', 'Process Optimization', 'Agile/PMP'],
+  },
+  {
+    id: 'modern-two-column',
+    name: 'Modern Two-Column',
     category: 'Creative',
-    description: 'Soft blush-pink sidebar with framed portrait, white section pills, signature calligraphy script name, and blush accent section banners recreating the Olivia Wilson blush resume.',
-    styleDescription: 'Blush pink sidebar, framed portrait, script signature, tinted section bars',
+    intendedUse: 'Visual layout for design, client-facing consulting, marketing, and creative tech',
+    description: 'Contemporary split-view layout featuring a cool slate sidebar for contact info, skills, and credentials, paired with an expansive career narrative.',
+    styleDescription: 'Contemporary dual-column, sidebar credentials, visual layout',
     isAtsFriendly: false,
     atsScoreRating: 92,
     isPopular: true,
-    tags: ['Reference Design', 'Blush Pink', 'Framed Photo', 'Editorial Script'],
+    isVisualLayout: true,
+    tags: ['Creative', 'Dual-Column', 'Visual Layout', 'Portfolio'],
   },
 ];
 
 export function normalizeTemplateId(id: string): ResumeTemplateId {
   switch (id) {
+    case 'ats-classic':
     case 'modern-ats':
       return 'ats-classic';
+    case 'software-engineer':
     case 'tech-professional':
       return 'software-engineer';
+    case 'graduate-fresher':
+    case 'fresh-graduate':
+    case 'graduate-entry':
+      return 'graduate-fresher';
+    case 'executive-professional':
+    case 'corporate-executive':
     case 'executive':
     case 'corporate':
-      return 'corporate-executive';
+    case 'experienced-professional':
+      return 'executive-professional';
+    case 'data-analyst':
     case 'data-ai':
       return 'data-analyst';
-    case 'minimal':
-      return 'minimalist';
-    case 'graduate-entry':
-      return 'fresh-graduate';
-    case 'ats-classic':
+    case 'ui-ux-designer':
+    case 'creative-professional':
+      return 'ui-ux-designer';
+    case 'full-stack-developer':
+      return 'full-stack-developer';
+    case 'internship-applicant':
+      return 'internship-applicant';
+    case 'academic-research':
+    case 'academic':
+      return 'academic-research';
+    case 'sales-marketing':
+      return 'sales-marketing';
+    case 'operations-management':
+      return 'operations-management';
+    case 'modern-two-column':
+    case 'contemporary':
+      return 'modern-two-column';
+    // Older reference designs mapped gracefully to canonical templates or preserved
     case 'modern-professional':
     case 'minimalist':
-    case 'corporate-executive':
-    case 'software-engineer':
-    case 'fresh-graduate':
-    case 'data-analyst':
-    case 'creative-professional':
+    case 'minimal':
     case 'compact-one-page':
-    case 'academic':
-    case 'experienced-professional':
-    case 'contemporary':
     case 'thomas-hamptone':
     case 'nick-koe':
     case 'richard-sanchez':
     case 'olivia-wilson-grid':
     case 'olivia-wilson-blush':
-      return id;
+      return id as ResumeTemplateId;
     default:
       return 'ats-classic';
   }

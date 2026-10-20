@@ -30,7 +30,21 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { jobTitle, company, location, source, jobUrl, appliedAt, status, notes, jobId } = body;
+    const {
+      jobTitle,
+      company,
+      location,
+      source,
+      jobUrl,
+      appliedAt,
+      status,
+      notes,
+      jobId,
+      resumeId,
+      appliedConfirmedAt,
+      descriptionSnippet,
+      salary,
+    } = body;
 
     if (!jobTitle || !company) {
       return NextResponse.json(
@@ -49,6 +63,10 @@ export async function POST(req: Request) {
       appliedAt,
       status,
       notes,
+      resumeId,
+      appliedConfirmedAt,
+      descriptionSnippet,
+      salary,
     });
 
     return NextResponse.json({
@@ -73,7 +91,21 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json();
-    const { id, jobTitle, company, location, source, jobUrl, appliedAt, status, notes } = body;
+    const {
+      id,
+      jobTitle,
+      company,
+      location,
+      source,
+      jobUrl,
+      appliedAt,
+      status,
+      notes,
+      resumeId,
+      appliedConfirmedAt,
+      descriptionSnippet,
+      salary,
+    } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -91,6 +123,10 @@ export async function PUT(req: Request) {
       appliedAt,
       status,
       notes,
+      resumeId,
+      appliedConfirmedAt,
+      descriptionSnippet,
+      salary,
     });
 
     return NextResponse.json({

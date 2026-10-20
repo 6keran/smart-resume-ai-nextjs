@@ -3,7 +3,7 @@
 import React from 'react';
 import { ResumeTemplateInfo, ResumeTemplateId, ResumeData } from '@/types/resume';
 import { ResumeRenderer } from './templates/ResumeRenderer';
-import { Check, Eye, Sparkles, ShieldCheck } from 'lucide-react';
+import { Check, Eye, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export function TemplateCard({
   template,
@@ -43,36 +43,51 @@ export function TemplateCard({
       data-template-id={template.id}
       className={`group relative flex flex-col justify-between rounded-xl border transition-all duration-150 overflow-hidden ${
         isSelected
-          ? 'border-[var(--accent)] bg-[var(--accent-subtle)] ring-1 ring-[var(--accent)]'
-          : 'border-[var(--border-color)] bg-[var(--bg-card)] hover:border-[var(--border-hover)]'
+          ? 'border-[var(--accent)] bg-[var(--accent-subtle)] ring-1 ring-[var(--accent)] shadow-sm'
+          : 'border-[var(--border-color)] bg-[var(--bg-card)] hover:border-[var(--border-hover)] hover:shadow-sm'
       }`}
     >
       {/* Top Details & Badges */}
       <div className="p-3.5 pb-2">
-        <div className="flex items-center justify-between gap-1.5 mb-1">
-          <h3 className="text-xs font-semibold text-[var(--text-primary)] truncate">
-            {template.name}
-          </h3>
-          {template.isAtsFriendly ? (
+        <div className="flex items-start justify-between gap-1.5 mb-1">
+          <div className="min-w-0">
+            <h3 className="text-xs font-bold text-[var(--text-primary)] truncate">
+              {template.name}
+            </h3>
+            {template.intendedUse && (
+              <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium truncate mt-0.5" title={template.intendedUse}>
+                Best for: {template.intendedUse}
+              </p>
+            )}
+          </div>
+
+          {template.isVisualLayout ? (
             <span
-              className="inline-flex items-center gap-1 text-[9.5px] font-medium text-[var(--color-success)] bg-[var(--color-success)]/10 border border-[var(--color-success)]/20 px-2 py-0.5 rounded shrink-0"
-              title="Optimized for Applicant Tracking Systems"
+              className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded shrink-0"
+              title="Visual layout for creative tech & portfolios. Single-column recommended for ATS-strict portals."
             >
-              <ShieldCheck className="w-3 h-3 text-[var(--color-success)]" />
+              <AlertCircle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+              Visual Layout
+            </span>
+          ) : template.isAtsFriendly ? (
+            <span
+              className="inline-flex items-center gap-1 text-[9px] font-semibold text-[var(--color-success)] bg-[var(--color-success)]/10 border border-[var(--color-success)]/20 px-2 py-0.5 rounded shrink-0"
+              title="100% compliant single-column layout for Applicant Tracking Systems"
+            >
+              <ShieldCheck className="w-3 h-3 text-[var(--color-success)] shrink-0" />
               ATS-Friendly
             </span>
           ) : (
             <span
-              className="inline-flex items-center gap-1 text-[9.5px] font-medium text-[var(--accent)] bg-[var(--accent-subtle)] border border-[var(--border-color)] px-2 py-0.5 rounded shrink-0"
-              title="Modern styling with creative visual accents"
+              className="inline-flex items-center gap-1 text-[9px] font-semibold text-[var(--accent)] bg-[var(--accent-subtle)] border border-[var(--border-color)] px-2 py-0.5 rounded shrink-0"
             >
-              <Sparkles className="w-3 h-3 text-[var(--accent)]" />
-              Creative
+              Portfolio Design
             </span>
           )}
         </div>
-        <p className="text-[10.5px] text-[var(--text-secondary)] line-clamp-1 mb-1">
-          {template.styleDescription}
+
+        <p className="text-[10.5px] text-[var(--text-secondary)] line-clamp-2 mt-1 leading-relaxed">
+          {template.description}
         </p>
       </div>
 

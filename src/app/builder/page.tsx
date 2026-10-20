@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, Suspense } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   FileEdit,
   Check,
@@ -25,6 +27,14 @@ import {
   RotateCcw,
   ShieldCheck,
   Filter,
+  Target,
+  X,
+  ExternalLink,
+  RefreshCw,
+  History,
+  Save,
+  Clock,
+  Loader2,
 } from 'lucide-react';
 import { useResume } from '@/context/ResumeContext';
 import { RESUME_TEMPLATES, MINI_SAMPLE_RESUME_DATA, normalizeTemplateId } from '@/lib/templates';
@@ -33,9 +43,10 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { A4ResumeDocument } from '@/components/builder/A4ResumeDocument';
 import { TemplateCard } from '@/components/builder/TemplateCard';
 
-export default function ResumeBuilderPage() {
+function ResumeBuilderContent() {
   const {
     resumeData,
+    setResumeData,
     updatePersonalInfo,
     updateSummary,
     updateSkills,
@@ -47,20 +58,266 @@ export default function ResumeBuilderPage() {
     setCandidateType,
     resetToSampleResume,
     loadFresherSample,
+    targetJob,
+    clearTargetJob,
+    analysisResult,
+    runAnalysis,
+    activeResumeId: contextActiveResumeId,
+    setActiveResumeId: setContextActiveResumeId,
+    saveState,
+    saveError,
+    saveActiveResume,
   } = useResume();
 
+  const searchParams = useSearchParams();
+  const urlResumeId = searchParams?.get('resumeId') || null;
+  const activeResumeId = urlResumeId || contextActiveResumeId;
+  const setActiveResumeId = setContextActiveResumeId;
+  const [versions, setVersions] = useState<any[]>([]);
+  const [isLoadingVersions, setIsLoadingVersions] = useState<boolean>(false);
+  const [showVersionsModal, setShowVersionsModal] = useState<boolean>(false);
+  const [showSaveSnapshotModal, setShowSaveSnapshotModal] = useState<boolean>(false);
+  const [snapshotSummary, setSnapshotSummary] = useState<string>('');
+  const [isSavingSnapshot, setIsSavingSnapshot] = useState<boolean>(false);
+  const [isRestoringVersionId, setIsRestoringVersionId] = useState<string | null>(null);
+
   const [currentStep, setCurrentStep] = useState<number>(1);
-  const [zoom, setZoom] = useState<number>(0.75);
-  const [defaultFitZoom, setDefaultFitZoom] = useState<number>(0.75);
+  const [zoom, setZoom] = useState<number>(0.60);
+  const [defaultFitZoom, setDefaultFitZoom] = useState<number>(0.60);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [globalBanner, setGlobalBanner] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportSuccess, setExportSuccess] = useState<boolean>(false);
 
+  // Target Job & AI Tailoring State
+  const [showTargetJobModal, setShowTargetJobModal] = useState<boolean>(false);
+  const [isImprovingSummary, setIsImprovingSummary] = useState<boolean>(false);
+  const [summaryAiSuggestion, setSummaryAiSuggestion] = useState<{
+    improved: string;
+    reasoning: string;
+  } | null>(null);
+  const [improvingExpIdx, setImprovingExpIdx] = useState<number | null>(null);
+  const [improvingProjIdx, setImprovingProjIdx] = useState<number | null>(null);
+  const [tailorSuccessToast, setTailorSuccessToast] = useState<string | null>(null);
+
   const previewViewportRef = useRef<HTMLDivElement>(null);
 
   const isFresher = resumeData.candidateType === 'fresher';
+
+  const triggerToast = (msg: string) => {
+    setTailorSuccessToast(msg);
+    setTimeout(() => {
+      setTailorSuccessToast(null);
+    }, 3200);
+  };
+
+  const fetchVersions = useCallback(async (resId?: string) => {
+    setIsLoadingVersions(true);
+    try {
+      const q = resId || activeResumeId;
+      const url = q ? `/api/user/resumes/versions?resumeId=${encodeURIComponent(q)}` : '/api/user/resumes/versions';
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setVersions(data.versions || []);
+      }
+    } catch (err) {
+      console.error('Failed to load resume versions:', err);
+    } finally {
+      setIsLoadingVersions(false);
+    }
+  }, [activeResumeId]);
+
+  useEffect(() => {
+    fetchVersions(urlResumeId || undefined);
+  }, [urlResumeId, fetchVersions]);
+
+  useEffect(() => {
+    if (!urlResumeId) return;
+    async function loadResumeFromDb() {
+      try {
+        const res = await fetch(`/api/user/resumes?id=${encodeURIComponent(urlResumeId!)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.resume && data.resume.resumeData) {
+            setResumeData(data.resume.resumeData);
+            triggerToast(`Loaded "${data.resume.filename || 'Resume'}" into editor.`);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load specified resume:', err);
+      }
+    }
+    loadResumeFromDb();
+  }, [urlResumeId, setResumeData]);
+
+  const handleSaveSnapshot = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSavingSnapshot(true);
+    try {
+      const summary = snapshotSummary.trim() || `Snapshot at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      const res = await fetch('/api/user/resumes/versions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resumeId: activeResumeId,
+          resumeData,
+          changeSummary: summary,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.version?.resumeId && !activeResumeId) {
+          setActiveResumeId(data.version.resumeId);
+        }
+        triggerToast(`Saved Version ${data.version?.versionNumber || ''} snapshot!`);
+        setShowSaveSnapshotModal(false);
+        setSnapshotSummary('');
+        fetchVersions(data.version?.resumeId || activeResumeId || undefined);
+      } else {
+        triggerToast('Please sign in to save cloud snapshots.');
+      }
+    } catch (err) {
+      console.error('Error saving version snapshot:', err);
+      triggerToast('Could not save snapshot.');
+    } finally {
+      setIsSavingSnapshot(false);
+    }
+  };
+
+  const handleRestoreVersion = async (versionId: string, versionNumber: number) => {
+    if (!window.confirm(`Are you sure you want to restore Version ${versionNumber}? Your current unsaved edits will be replaced.`)) {
+      return;
+    }
+    setIsRestoringVersionId(versionId);
+    try {
+      const res = await fetch('/api/user/resumes/versions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ versionId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.resumeData) {
+          setResumeData(data.resumeData);
+          try {
+            localStorage.setItem('sra_resume_data', JSON.stringify(data.resumeData));
+          } catch {}
+          triggerToast(`Restored Version ${versionNumber} successfully!`);
+          setShowVersionsModal(false);
+        }
+      } else {
+        triggerToast('Failed to restore selected version.');
+      }
+    } catch (err) {
+      console.error('Error restoring version:', err);
+      triggerToast('Error restoring version.');
+    } finally {
+      setIsRestoringVersionId(null);
+    }
+  };
+
+  // AI Assistant: Tailor Summary
+  const handleTailorSummary = async () => {
+    setIsImprovingSummary(true);
+    try {
+      const res = await fetch('/api/resume/improve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sectionName: 'summary',
+          originalContent:
+            resumeData.summary ||
+            'Experienced engineer delivering scalable web and backend applications.',
+          jobDescription: targetJob.description || undefined,
+          jobTitle: targetJob.title || undefined,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSummaryAiSuggestion({
+          improved: data.improvedContent,
+          reasoning: data.reasoning,
+        });
+      }
+    } catch (err) {
+      console.error('Tailor summary error:', err);
+    } finally {
+      setIsImprovingSummary(false);
+    }
+  };
+
+  // AI Assistant: Improve Experience Bullet
+  const handleImproveBullet = async (expIndex: number) => {
+    if (!resumeData.experience[expIndex]) return;
+    setImprovingExpIdx(expIndex);
+    try {
+      const originalBullets = resumeData.experience[expIndex].bulletPoints;
+      const bulletToImprove =
+        originalBullets[0] || 'Spearheaded key engineering workflows with high reliability.';
+      const res = await fetch('/api/resume/improve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sectionName: 'experience',
+          originalContent: bulletToImprove,
+          jobDescription: targetJob.description || undefined,
+          jobTitle: targetJob.title || undefined,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const updated = [...resumeData.experience];
+        if (updated[expIndex].bulletPoints.length > 0) {
+          updated[expIndex].bulletPoints[0] = data.improvedContent;
+        } else {
+          updated[expIndex].bulletPoints.push(data.improvedContent);
+        }
+        updateExperience(updated);
+        triggerToast('Updated first bullet point with high-impact active phrasing.');
+      }
+    } catch (err) {
+      console.error('Improve bullet error:', err);
+    } finally {
+      setImprovingExpIdx(null);
+    }
+  };
+
+  // AI Assistant: Improve Project
+  const handleImproveProject = async (projIndex: number) => {
+    if (!resumeData.projects[projIndex]) return;
+    setImprovingProjIdx(projIndex);
+    try {
+      const proj = resumeData.projects[projIndex];
+      const originalText = proj.description || (proj.bullets && proj.bullets[0]) || proj.title;
+      const res = await fetch('/api/resume/improve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sectionName: 'projects',
+          originalContent: originalText,
+          jobDescription: targetJob.description || undefined,
+          jobTitle: targetJob.title || undefined,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const updated = [...resumeData.projects];
+        if (updated[projIndex].bullets && updated[projIndex].bullets.length > 0) {
+          updated[projIndex].bullets[0] = data.improvedContent;
+        } else {
+          updated[projIndex].description = data.improvedContent;
+        }
+        updateProjects(updated);
+        triggerToast('Enhanced project description with active technical impact.');
+      }
+    } catch (err) {
+      console.error('Improve project error:', err);
+    } finally {
+      setImprovingProjIdx(null);
+    }
+  };
 
   const steps = [
     { number: 1, label: 'Personal Information', icon: User },
@@ -93,9 +350,9 @@ export default function ResumeBuilderPage() {
 
   // Calculate container fit zoom
   const calculateFitZoom = useCallback(() => {
-    if (!previewViewportRef.current) return 0.75;
-    const availableWidth = previewViewportRef.current.clientWidth - 32;
-    if (availableWidth <= 0) return 0.75;
+    if (!previewViewportRef.current) return 0.60;
+    const availableWidth = previewViewportRef.current.clientWidth - 24;
+    if (availableWidth <= 0) return 0.60;
     // A4 base document width is 794px
     const widthFit = availableWidth / 794;
     const availableHeight = previewViewportRef.current.clientHeight - 32;
@@ -105,8 +362,8 @@ export default function ResumeBuilderPage() {
       // Balance width and height fit so document displays comfortably
       target = Math.min(widthFit, heightFit * 1.05);
     }
-    // Clamp between 0.50 and 1.00 for initial fit
-    return Math.max(0.50, Math.min(1.00, Math.round(target * 100) / 100));
+    // Clamp between 0.28 and 1.00 for initial fit so mobile viewports fit completely
+    return Math.max(0.28, Math.min(1.00, Math.round(target * 100) / 100));
   }, []);
 
   // Set initial zoom on mount and recalculate on resize
@@ -434,13 +691,13 @@ export default function ResumeBuilderPage() {
     });
   };
 
-  // Zoom control helpers (min 50%, max 125%)
+  // Zoom control helpers (min 28%, max 125%)
   const handleZoomIn = () => {
     setZoom((prev) => Math.min(1.25, Math.round((prev + 0.05) * 100) / 100));
   };
 
   const handleZoomOut = () => {
-    setZoom((prev) => Math.max(0.50, Math.round((prev - 0.05) * 100) / 100));
+    setZoom((prev) => Math.max(0.28, Math.round((prev - 0.05) * 100) / 100));
   };
 
   const handleResetZoom = () => {
@@ -450,40 +707,36 @@ export default function ResumeBuilderPage() {
   // Input styling helper
   const getInputClassName = (fieldKey: string, extraClasses = '') => {
     const hasError = Boolean(fieldErrors[fieldKey]);
-    return `w-full p-2.5 rounded-lg border text-[var(--text-primary)] text-xs transition-colors focus:outline-none ${
+    return `w-full p-2.5 rounded-lg border text-[var(--text-primary)] text-xs transition-all duration-150 focus:outline-none ${
       hasError
-        ? 'border-[var(--color-error)] bg-[var(--color-error)]/5 focus:border-[var(--color-error)] focus:ring-1 focus:ring-[var(--color-error)]'
-        : 'border-[var(--border-color)] bg-[var(--input-bg)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]'
+        ? 'border-[var(--color-error)] bg-[var(--color-error)]/5 focus:border-[var(--color-error)] focus-visible:ring-2 focus-visible:ring-[var(--color-error)]/20'
+        : 'border-[var(--border-color)] bg-[var(--input-bg)] focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]/20'
     } ${extraClasses}`;
   };
 
   return (
-    <div className="resume-builder-page-container min-h-screen py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6">
+    <div className="resume-builder-page-container min-h-screen py-6 sm:py-8 px-3 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6 w-full max-w-full overflow-hidden">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border-color)] pb-6 no-print">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 mb-2">
-            <FileEdit className="w-3.5 h-3.5" />
-            Standard A4 Multi-Step Builder
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] tracking-tight">
-            Professional Resume Builder
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-[var(--text-primary)] tracking-tight">
+            Resume Builder
           </h1>
           <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1">
-            Build, format, and generate print-ready A4 resumes with 8 ATS-validated layouts.
+            Build, format, and export print-ready A4 resumes across recruiter-approved templates.
           </p>
         </div>
 
         {/* Candidate Type Toggle (Preserves user data) */}
-        <div className="flex items-center gap-3">
-          <div className="p-1 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] flex items-center gap-1 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="p-1 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] flex items-center gap-1 shadow-xs shrink-0">
             <button
               id="btn-candidate-experienced"
               type="button"
               onClick={() => handleCandidateTypeChange('experienced')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all duration-150 active:scale-95 cursor-pointer ${
                 resumeData.candidateType === 'experienced'
-                  ? 'bg-[var(--accent)] text-white shadow-sm'
+                  ? 'bg-[var(--accent)] text-white shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)]'
               }`}
             >
@@ -494,9 +747,9 @@ export default function ResumeBuilderPage() {
               id="btn-candidate-fresher"
               type="button"
               onClick={() => handleCandidateTypeChange('fresher')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all duration-150 active:scale-95 cursor-pointer ${
                 resumeData.candidateType === 'fresher'
-                  ? 'bg-[var(--accent)] text-white shadow-sm'
+                  ? 'bg-[var(--accent)] text-white shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)]'
               }`}
             >
@@ -514,18 +767,126 @@ export default function ResumeBuilderPage() {
                 resetToSampleResume();
               }
             }}
-            className="px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer text-[var(--accent)] hover:bg-[var(--accent-subtle)] border border-[var(--border-color)] hover:border-[var(--accent)] bg-[var(--bg-card)] shadow-sm"
+            className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-150 active:scale-95 cursor-pointer text-[var(--accent)] hover:bg-[var(--accent-subtle)] border border-[var(--border-color)] hover:border-[var(--accent)] bg-[var(--bg-card)] shadow-xs shrink-0"
             title="Fill in rich sample resume data to preview templates immediately"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Load Sample Data</span>
+            <span>Load Sample</span>
+          </button>
+
+          {saveState === 'saving' && (
+            <span className="px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-[var(--text-secondary)] border border-[var(--border-color)] bg-[var(--bg-secondary)] shrink-0">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
+              <span>Saving...</span>
+            </span>
+          )}
+          {saveState === 'saved' && (
+            <span className="px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-emerald-500 border border-emerald-500/20 bg-emerald-500/10 shrink-0">
+              <Check className="w-3.5 h-3.5" />
+              <span>Saved to cloud</span>
+            </span>
+          )}
+          {saveState === 'error' && (
+            <button
+              type="button"
+              onClick={() => saveActiveResume()}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 text-rose-500 border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 transition-all duration-150 shrink-0 cursor-pointer"
+              title={saveError || 'Save failed'}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Retry Save</span>
+            </button>
+          )}
+
+          <button
+            id="btn-save-snapshot"
+            type="button"
+            onClick={() => setShowSaveSnapshotModal(true)}
+            className="px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all duration-150 active:scale-95 cursor-pointer text-[var(--text-primary)] hover:bg-[var(--bg-card)] hover:border-[var(--accent)] border border-[var(--border-color)] bg-[var(--bg-secondary)] shadow-xs shrink-0"
+            title="Save a named version snapshot of this resume"
+          >
+            <History className="w-3.5 h-3.5 text-[var(--accent)]" />
+            <span>Save Snapshot</span>
+          </button>
+
+          <button
+            id="btn-version-history"
+            type="button"
+            onClick={() => {
+              setShowVersionsModal(true);
+              fetchVersions();
+            }}
+            className="px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all duration-150 active:scale-95 cursor-pointer text-[var(--text-primary)] hover:bg-[var(--bg-card)] hover:border-[var(--accent)] border border-[var(--border-color)] bg-[var(--bg-secondary)] shadow-xs shrink-0"
+            title="Browse and restore prior resume versions"
+          >
+            <Clock className="w-3.5 h-3.5 text-indigo-400" />
+            <span>History {versions.length > 0 ? `(${versions.length})` : ''}</span>
           </button>
         </div>
       </div>
 
+      {/* Toast Notification */}
+      {tailorSuccessToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[var(--text-primary)] text-[var(--bg-primary)] px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-[var(--border-color)] animate-fade-in text-xs font-semibold">
+          <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{tailorSuccessToast}</span>
+        </div>
+      )}
+
+      {/* Target Job Banner */}
+      {(targetJob.title || targetJob.description) && (
+        <div className="no-print p-4 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent)]/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[var(--accent)] text-white flex items-center justify-center shrink-0 shadow-sm">
+              <Target className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-[var(--text-primary)]">
+                  🎯 Job-Specific Mode: {targetJob.title || 'Target Role'} {targetJob.company ? `@ ${targetJob.company}` : ''}
+                </span>
+                {analysisResult?.overallAtsScore !== undefined && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                    {analysisResult.overallAtsScore}% ATS Score
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-[var(--text-secondary)]">
+                Real-time preview and AI writing assistants are calibrated to this job specification.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href="/analyzer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent)] text-white text-xs font-semibold hover:bg-[var(--accent-hover)] transition-all cursor-pointer shadow-sm"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Re-analyze in Analyser
+            </Link>
+            <button
+              type="button"
+              onClick={() => setShowTargetJobModal(true)}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] hover:bg-[var(--bg-secondary)] text-xs text-[var(--text-primary)] transition-all cursor-pointer"
+            >
+              <span>View Job Specs</span>
+            </button>
+            <button
+              type="button"
+              onClick={clearTargetJob}
+              className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-rose-400 transition-colors cursor-pointer"
+              title="Exit Job-Specific Mode"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Stepper Bar (1 to 10) */}
-      <div className="no-print overflow-x-auto pb-2">
-        <div className="flex items-center justify-between min-w-[700px] border-b border-[var(--border-color)] pb-4">
+      <div className="no-print w-full max-w-full overflow-x-auto pb-2">
+        <div className="flex items-center justify-between min-w-[700px] border-b border-[var(--border-color)] pb-4 px-1">
           {steps.map((st) => {
             const isCompleted = st.number < currentStep;
             const isCurrent = st.number === currentStep;
@@ -537,7 +898,7 @@ export default function ResumeBuilderPage() {
                 key={st.number}
                 type="button"
                 onClick={() => handleStepClick(st.number)}
-                className={`flex flex-col items-center gap-1.5 transition-all group ${
+                className={`flex flex-col items-center gap-1.5 transition-all duration-150 active:scale-95 group cursor-pointer ${
                   isCurrent
                     ? 'text-[var(--accent)] font-bold'
                     : isCompleted
@@ -546,9 +907,9 @@ export default function ResumeBuilderPage() {
                 }`}
               >
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all duration-150 ${
                     isCurrent
-                      ? 'bg-[var(--accent)] text-white shadow-sm scale-105'
+                      ? 'bg-[var(--accent)] text-white shadow-xs scale-105'
                       : isCompleted
                       ? 'bg-[var(--color-success)]/10 text-[var(--color-success)] border border-[var(--color-success)]/30'
                       : 'bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)]'
@@ -837,6 +1198,66 @@ export default function ResumeBuilderPage() {
                     </p>
                   )}
 
+                  {/* AI Tailoring Assistant Button */}
+                  <div className="pt-2 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={handleTailorSummary}
+                      disabled={isImprovingSummary}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent-subtle)] text-[var(--accent)] border border-[var(--accent)]/30 hover:bg-[var(--accent)] hover:text-white transition-all text-xs font-semibold cursor-pointer disabled:opacity-50"
+                    >
+                      <Wand2 className={`w-3.5 h-3.5 ${isImprovingSummary ? 'animate-spin' : ''}`} />
+                      {isImprovingSummary
+                        ? 'AI Writing Assistant analyzing...'
+                        : targetJob.title
+                        ? `Tailor Summary for ${targetJob.title}`
+                        : 'AI Enhance Summary'}
+                    </button>
+                    {targetJob.title && (
+                      <span className="text-[10px] text-[var(--text-secondary)]">
+                        Job: {targetJob.title}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* AI Suggestion Preview Box */}
+                  {summaryAiSuggestion && (
+                    <div className="p-3.5 rounded-xl bg-[var(--accent-subtle)] border border-[var(--accent)]/30 text-xs space-y-2 mt-2 animate-fade-in">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[var(--accent)] uppercase text-[10px] tracking-wider flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" />
+                          AI Tailored Alternative
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSummaryAiSuggestion(null)}
+                          className="text-[var(--text-secondary)] hover:text-rose-400 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <p className="text-[var(--text-primary)] font-semibold leading-relaxed">
+                        {summaryAiSuggestion.improved}
+                      </p>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-[var(--accent)]/20">
+                        <span className="text-[10px] text-[var(--text-secondary)]">
+                          {summaryAiSuggestion.reasoning}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateSummary(summaryAiSuggestion.improved);
+                            setSummaryAiSuggestion(null);
+                            triggerToast('Applied tailored summary to your resume.');
+                          }}
+                          className="px-3 py-1 rounded-md bg-[var(--accent)] text-white font-semibold text-xs hover:bg-[var(--accent-hover)] transition-all cursor-pointer shrink-0"
+                        >
+                          Accept & Replace
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* AI Quick Starters */}
                   <div className="mt-2.5 flex flex-wrap items-center gap-2">
                     <span className="text-[10px] text-[var(--text-secondary)] font-medium">Quick Starters:</span>
@@ -929,6 +1350,52 @@ export default function ResumeBuilderPage() {
                       </span>
                     ))}
                   </div>
+
+                  {/* Target Job Skills Recommendation Chips */}
+                  {((analysisResult?.missingSkills && analysisResult.missingSkills.length > 0)
+                    ? analysisResult.missingSkills
+                    : (analysisResult?.missingKeywords || [])
+                  ).filter(
+                    (s) =>
+                      !resumeData.skills.technical
+                        .map((t) => t.toLowerCase())
+                        .includes(s.toLowerCase())
+                  ).length > 0 && (
+                    <div className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] space-y-2 mt-2">
+                      <span className="text-[10px] font-bold text-[var(--accent)] uppercase tracking-wider block">
+                        Recommended for Target Job (Click to Add):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {((analysisResult?.missingSkills && analysisResult.missingSkills.length > 0)
+                          ? analysisResult.missingSkills
+                          : (analysisResult?.missingKeywords || [])
+                        )
+                          .filter(
+                            (s) =>
+                              !resumeData.skills.technical
+                                .map((t) => t.toLowerCase())
+                                .includes(s.toLowerCase())
+                          )
+                          .slice(0, 6)
+                          .map((skill) => (
+                            <button
+                              key={skill}
+                              type="button"
+                              onClick={() => {
+                                updateSkills({
+                                  ...resumeData.skills,
+                                  technical: [...resumeData.skills.technical, skill],
+                                });
+                                triggerToast(`Added "${skill}" to Technical Skills.`);
+                              }}
+                              className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-[var(--accent-subtle)] text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-all border border-[var(--accent)]/20 cursor-pointer"
+                            >
+                              + {skill}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1379,9 +1846,20 @@ export default function ResumeBuilderPage() {
                       </div>
 
                       <div>
-                        <label className="block font-medium text-[var(--text-primary)] mb-1">
-                          Accomplishment Bullets (one per line)
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block font-medium text-[var(--text-primary)]">
+                            Accomplishment Bullets (one per line)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleImproveBullet(idx)}
+                            disabled={improvingExpIdx === idx}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--accent)] hover:underline cursor-pointer disabled:opacity-50"
+                          >
+                            <Wand2 className={`w-3 h-3 ${improvingExpIdx === idx ? 'animate-spin' : ''}`} />
+                            {improvingExpIdx === idx ? 'Enhancing...' : 'AI Enhance Phrasing'}
+                          </button>
+                        </div>
                         <textarea
                           rows={3}
                           value={exp.bulletPoints.join('\n')}
@@ -1568,9 +2046,20 @@ export default function ResumeBuilderPage() {
                       </div>
 
                       <div>
-                        <label className="block font-medium text-[var(--text-primary)] mb-1">
-                          Description & Impact
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block font-medium text-[var(--text-primary)]">
+                            Description & Impact
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleImproveProject(idx)}
+                            disabled={improvingProjIdx === idx}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--accent)] hover:underline cursor-pointer disabled:opacity-50"
+                          >
+                            <Wand2 className={`w-3 h-3 ${improvingProjIdx === idx ? 'animate-spin' : ''}`} />
+                            {improvingProjIdx === idx ? 'Enhancing...' : 'AI Enhance Phrasing'}
+                          </button>
+                        </div>
                         <textarea
                           rows={2}
                           value={proj.description}
@@ -1697,18 +2186,17 @@ export default function ResumeBuilderPage() {
                   {[
                     'All',
                     'ATS-Friendly',
-                    'Professional',
-                    'Tech',
-                    'Executive',
-                    'Entry Level',
+                    'Freshers',
+                    'Experienced',
+                    'Technical',
                     'Creative',
-                    'Minimalist',
                   ].map((cat) => (
                     <button
                       key={cat}
                       type="button"
+                      id={`btn-filter-${cat.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
                       onClick={() => setSelectedCategory(cat)}
-                      className={`px-2.5 py-1 rounded-lg text-[10.5px] font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                      className={`px-3 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                         selectedCategory === cat
                           ? 'bg-[var(--accent)] text-white shadow-sm'
                           : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]'
@@ -1720,10 +2208,22 @@ export default function ResumeBuilderPage() {
                 </div>
 
                 {/* Template Cards Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[520px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[540px] overflow-y-auto pr-1">
                   {RESUME_TEMPLATES.filter((tmpl) => {
                     if (selectedCategory === 'All') return true;
                     if (selectedCategory === 'ATS-Friendly') return tmpl.isAtsFriendly;
+                    if (selectedCategory === 'Freshers') {
+                      return tmpl.category === 'Freshers' || tmpl.tags?.includes('Freshers');
+                    }
+                    if (selectedCategory === 'Experienced') {
+                      return tmpl.category === 'Experienced' || tmpl.tags?.includes('Experienced');
+                    }
+                    if (selectedCategory === 'Technical') {
+                      return tmpl.category === 'Technical' || tmpl.tags?.includes('Technical');
+                    }
+                    if (selectedCategory === 'Creative') {
+                      return tmpl.category === 'Creative' || tmpl.isVisualLayout || tmpl.tags?.includes('Creative');
+                    }
                     return (
                       tmpl.category.toLowerCase().includes(selectedCategory.toLowerCase()) ||
                       tmpl.tags?.some((t) => t.toLowerCase().includes(selectedCategory.toLowerCase()))
@@ -1918,25 +2418,25 @@ export default function ResumeBuilderPage() {
         <div
           className={`resume-preview-column ${
             currentStep >= 9 ? 'lg:col-span-8' : 'lg:col-span-6'
-          } flex flex-col items-center min-w-0 w-full max-w-full`}
+          } flex flex-col items-center min-w-0 w-full max-w-full overflow-hidden`}
         >
           {/* Zoom & Document Viewer Controls */}
-          <div className="no-print w-full flex items-center justify-between mb-3 px-2">
-            <span className="text-xs font-semibold text-[var(--text-secondary)] flex items-center gap-1.5">
-              <Eye className="w-3.5 h-3.5 text-[var(--accent)]" />
-              Live A4 Preview (210 × 297 mm)
+          <div className="no-print w-full flex items-center justify-between mb-3 px-1 sm:px-2 gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-[var(--text-secondary)] flex items-center gap-1.5 truncate">
+              <Eye className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
+              <span>Live A4 Preview (210 × 297 mm)</span>
             </span>
-            <div className="flex items-center gap-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg p-1 text-xs shadow-sm">
+            <div className="flex items-center gap-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg p-1 text-xs shadow-sm shrink-0">
               <button
                 type="button"
                 onClick={handleZoomOut}
-                disabled={zoom <= 0.50}
+                disabled={zoom <= 0.28}
                 className="p-1 rounded hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-30 cursor-pointer"
-                title="Zoom Out (min 50%)"
+                title="Zoom Out (min 28%)"
               >
                 <ZoomOut className="w-3.5 h-3.5" />
               </button>
-              <span className="px-2 font-mono font-semibold text-[var(--text-primary)] min-w-[42px] text-center">
+              <span className="px-1.5 sm:px-2 font-mono font-semibold text-[var(--text-primary)] min-w-[38px] text-center text-[11px] sm:text-xs">
                 {Math.round(zoom * 100)}%
               </span>
               <button
@@ -1964,7 +2464,7 @@ export default function ResumeBuilderPage() {
           <div
             ref={previewViewportRef}
             id="resume-print-viewport"
-            className="resume-preview-viewport w-full max-w-full overflow-auto max-h-[820px] rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-4 flex justify-center shadow-sm focus:outline-none"
+            className="resume-preview-viewport w-full max-w-full overflow-x-auto overflow-y-auto max-h-[820px] rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2 sm:p-4 flex justify-center shadow-sm focus:outline-none"
             tabIndex={0}
             role="region"
             aria-label="A4 Resume Preview Viewport"
@@ -1977,6 +2477,256 @@ export default function ResumeBuilderPage() {
           </div>
         </div>
       </div>
+
+      {/* Target Job Specification Modal */}
+      {showTargetJobModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in no-print">
+          <div className="w-full max-w-xl rounded-2xl bg-[var(--bg-card)] border border-[var(--border-color)] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-[var(--accent)]" />
+                <h3 className="text-sm font-bold text-[var(--text-primary)]">
+                  Target Job Specification
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTargetJobModal(false)}
+                className="p-1 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <span className="font-semibold text-[var(--text-secondary)] block text-[11px]">Role & Company</span>
+                <p className="font-bold text-[var(--text-primary)] text-sm">
+                  {targetJob.title || 'Not specified'} {targetJob.company ? `@ ${targetJob.company}` : ''}
+                </p>
+              </div>
+
+              <div>
+                <span className="font-semibold text-[var(--text-secondary)] block text-[11px] mb-1">Job Description Requirements</span>
+                <div className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] max-h-60 overflow-y-auto leading-relaxed text-[var(--text-secondary)] font-mono text-[11px] whitespace-pre-wrap">
+                  {targetJob.description || 'No job description text provided.'}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-[var(--border-color)]">
+              <Link
+                href="/analyzer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent)] text-white text-xs font-semibold hover:bg-[var(--accent-hover)] transition-all cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Re-Analyze in Analyser
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowTargetJobModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium border border-[var(--border-color)] hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save Snapshot Modal */}
+      {showSaveSnapshotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in no-print">
+          <div className="w-full max-w-md rounded-2xl bg-[var(--bg-card)] border border-[var(--border-color)] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-[var(--accent)]" />
+                <h3 className="text-sm font-bold text-[var(--text-primary)]">
+                  Save Resume Snapshot
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSaveSnapshotModal(false)}
+                className="p-1 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+              Create a named checkpoint of your current resume data. You can restore this version at any time from your version history.
+            </p>
+
+            <form onSubmit={handleSaveSnapshot} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">
+                  Change Note / Summary
+                </label>
+                <input
+                  type="text"
+                  value={snapshotSummary}
+                  onChange={(e) => setSnapshotSummary(e.target.value)}
+                  placeholder="e.g. Tailored for Senior Frontend role"
+                  className="w-full p-2.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs focus:outline-none focus:border-[var(--accent)]"
+                  maxLength={120}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSaveSnapshotModal(false)}
+                  className="px-3.5 py-2 rounded-lg text-xs font-medium border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingSnapshot}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white shadow-sm transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSavingSnapshot ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save Snapshot</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Version History Modal */}
+      {showVersionsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in no-print">
+          <div className="w-full max-w-xl rounded-2xl bg-[var(--bg-card)] border border-[var(--border-color)] p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-indigo-400" />
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">
+                    Resume Version History
+                  </h3>
+                  <p className="text-[11px] text-[var(--text-secondary)]">
+                    Saved revisions for this resume ({versions.length} available)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowVersionsModal(false)}
+                className="p-1 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
+              {isLoadingVersions ? (
+                <div className="py-12 text-center text-xs text-[var(--text-secondary)] flex flex-col items-center gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-[var(--accent)]" />
+                  <span>Loading version history...</span>
+                </div>
+              ) : versions.length === 0 ? (
+                <div className="py-10 text-center rounded-xl border border-dashed border-[var(--border-color)] p-6">
+                  <History className="w-8 h-8 text-[var(--text-muted)] mx-auto mb-2 opacity-50" />
+                  <p className="text-xs font-semibold text-[var(--text-primary)]">
+                    No versions saved yet
+                  </p>
+                  <p className="text-[11px] text-[var(--text-secondary)] mt-1 max-w-xs mx-auto">
+                    Click &quot;Save Snapshot&quot; anytime to preserve your resume state so you can restore it later.
+                  </p>
+                </div>
+              ) : (
+                versions.map((ver) => (
+                  <div
+                    key={ver.id}
+                    className="p-3.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-[var(--accent)]/40 transition-all flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20">
+                          v{ver.version_number}
+                        </span>
+                        <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                          {ver.change_summary || `Version ${ver.version_number}`}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[var(--text-secondary)] mt-1 flex items-center gap-1.5">
+                        <Clock className="w-3 h-3 text-[var(--text-muted)]" />
+                        <span>{new Date(ver.created_at).toLocaleString()}</span>
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isRestoringVersionId === ver.id}
+                      onClick={() => handleRestoreVersion(ver.id, ver.version_number)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--bg-card)] hover:bg-[var(--accent)] hover:text-white text-[var(--text-primary)] border border-[var(--border-color)] hover:border-transparent transition-all cursor-pointer shrink-0 disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      {isRestoringVersionId === ver.id ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Restoring...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RotateCcw className="w-3 h-3 text-[var(--accent)]" />
+                          <span>Restore</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-[var(--border-color)] flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowVersionsModal(false);
+                  setShowSaveSnapshotModal(true);
+                }}
+                className="text-xs font-semibold text-[var(--accent)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Save New Snapshot</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowVersionsModal(false)}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-medium border border-[var(--border-color)] hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function ResumeBuilderPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <ResumeBuilderContent />
+    </Suspense>
   );
 }

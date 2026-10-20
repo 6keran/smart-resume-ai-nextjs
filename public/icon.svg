@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <!-- Background Card Drop Shadow -->
+    <filter id="cardShadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="2.5" flood-color="#0F172A" flood-opacity="0.08"/>
+    </filter>
+
+    <!-- Background squircle subtle gradient -->
+    <linearGradient id="featherBgTile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F8FAFC"/>
+    </linearGradient>
+
+    <!-- Left body / spine: deep royal blue with rich volumetric gradient -->
+    <linearGradient id="spineGrad" x1="0.2" y1="0.9" x2="0.8" y2="0.15">
+      <stop offset="0%" stop-color="#1E3A8A"/>
+      <stop offset="40%" stop-color="#1D4ED8"/>
+      <stop offset="80%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+
+    <!-- Top vane plume: vibrant royal to electric blue -->
+    <linearGradient id="plumeTop" x1="0.4" y1="0.7" x2="0.9" y2="0.2">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="50%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#60A5FA"/>
+    </linearGradient>
+
+    <!-- Middle vane plume: lush royal blue with soft highlight -->
+    <linearGradient id="plumeMid" x1="0.3" y1="0.8" x2="0.9" y2="0.3">
+      <stop offset="0%" stop-color="#1D4ED8"/>
+      <stop offset="60%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+
+    <!-- Bottom vane plume: deep royal blue -->
+    <linearGradient id="plumeBot" x1="0.3" y1="0.9" x2="0.8" y2="0.4">
+      <stop offset="0%" stop-color="#1E3A8A"/>
+      <stop offset="60%" stop-color="#1E40AF"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+
+    <!-- Spine highlight / ridge -->
+    <linearGradient id="shaftSheen" x1="0.2" y1="0.9" x2="0.8" y2="0.15">
+      <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.2"/>
+      <stop offset="45%" stop-color="#93C5FD" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Clean White Squircle Tile with subtle border and elevation -->
+  <rect x="3" y="3" width="94" height="94" rx="25" fill="url(#featherBgTile)" stroke="#E2E8F0" stroke-width="1.2" filter="url(#cardShadow)"/>
+
+  <!-- Minimalist Option 8 Feather Symbol (Centered & Scaled for Icon Legibility) -->
+  <g transform="translate(50, 50) scale(1.15) translate(-51, -49)">
+    <!-- 1. Bottom Right Plume: sweeps out from spine, rounded barb tip, cuts back in -->
+    <path d="M 37 65
+             C 41 64.5, 46 62, 51.5 58
+             C 53 56.5, 51.8 54.5, 46 55.5
+             C 41.5 56.5, 37.5 59.5, 34 63
+             Z"
+          fill="url(#plumeBot)"/>
+
+    <!-- 2. Middle Right Plume: broad, curved, vibrant blue -->
+    <path d="M 43 54
+             C 49 51, 58 46.5, 67.5 42.5
+             C 69 41.2, 67.5 39, 61 40
+             C 52.5 41.8, 44 45.5, 38.5 50.5
+             Z"
+          fill="url(#plumeMid)"/>
+
+    <!-- 3. Top Right Plume: leading to top tip -->
+    <path d="M 50 42
+             C 58 35, 68 28, 75.5 24
+             C 76.2 23.5, 74.5 25, 69.5 28.5
+             C 60.5 34.5, 51.5 39.5, 45 42
+             Z"
+          fill="url(#plumeTop)"/>
+
+    <!-- 4. Left Leading Blade / Main Spine Body: smooth continuous curve -->
+    <path d="M 27.5 73
+             C 26 64, 28 52, 33.5 39
+             C 40 25.5, 53.5 19.5, 75.5 24
+             C 74.5 26.5, 67 36, 58 46
+             C 48 57, 39 66, 30.5 71.8
+             C 29 72.8, 28 73.2, 27.5 73
+             Z"
+          fill="url(#spineGrad)"/>
+
+    <!-- 5. Central Quill Crease Highlight -->
+    <path d="M 28 72.5
+             C 33 63, 41.5 48.5, 51.5 36.5
+             C 60 26.5, 68.5 22.8, 75.5 24"
+          fill="none"
+          stroke="url(#shaftSheen)"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          opacity="0.9"/>
+  </g>
+</svg>

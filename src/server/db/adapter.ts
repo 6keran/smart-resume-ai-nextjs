@@ -87,8 +87,10 @@ export function toPostgresSql(sql: string): string {
 
 /**
  * Initializes and returns the active database client singleton.
- * - In Vercel / serverless: Uses PostgreSQL via POSTGRES_URL or DATABASE_URL.
- * - In local development: Uses node:sqlite with data/smart_resume.db.
+ * - In Vercel / serverless / production: Uses PostgreSQL via POSTGRES_URL or DATABASE_URL.
+ * - In local development: Uses node:sqlite with data/smart_resume.db by default to prevent
+ *   remote network latency, DNS timeouts, and offline stalls.
+ * - Explicit override: Set DB_PROVIDER=postgres or FORCE_POSTGRES=true to connect to PostgreSQL locally.
  */
 export function getDb(): DatabaseClient {
   if (dbClientInstance) {
@@ -97,8 +99,23 @@ export function getDb(): DatabaseClient {
 
   const postgresUrl = (process.env.POSTGRES_URL || process.env.DATABASE_URL || '').trim();
   const isVercel = Boolean(process.env.VERCEL) || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+  const isProduction = process.env.NODE_ENV === 'production' || isVercel;
+  const dbProvider = (process.env.DB_PROVIDER || '').trim().toLowerCase();
+  const forcePostgres = dbProvider === 'postgres' || process.env.FORCE_POSTGRES === 'true';
 
-  if (postgresUrl) {
+  // Determine whether PostgreSQL should be used:
+  // 1. Mandatory in production / Vercel serverless.
+  // 2. Used in local development ONLY if explicitly configured via DB_PROVIDER=postgres or FORCE_POSTGRES=true.
+  const shouldUsePostgres = isProduction || forcePostgres;
+
+  if (shouldUsePostgres) {
+    if (!postgresUrl) {
+      const errorMsg =
+        '[Smart Resume AI] Database Error: Running in production or explicit PostgreSQL mode without a valid POSTGRES_URL or DATABASE_URL. Please configure environment variables.';
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
     if (!postgresPoolInstance) {
       postgresPoolInstance = new Pool({
         connectionString: postgresUrl,
@@ -163,14 +180,6 @@ export function getDb(): DatabaseClient {
     };
 
     return dbClientInstance;
-  }
-
-  // If in Vercel/serverless and no database URL is set:
-  if (isVercel) {
-    const errorMsg =
-      '[Smart Resume AI] Production Database Error: Running in serverless/Vercel environment without a persistent database configured. Please configure POSTGRES_URL or DATABASE_URL in Vercel Project Environment Variables.';
-    console.error(errorMsg);
-    throw new Error(errorMsg);
   }
 
   // Local development fallback: SQLite

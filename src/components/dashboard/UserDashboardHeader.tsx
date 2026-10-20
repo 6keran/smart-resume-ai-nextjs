@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Sparkles,
   Menu,
   X,
   LayoutDashboard,
@@ -83,44 +82,52 @@ export function UserDashboardHeader({ user }: UserDashboardHeaderProps) {
     <>
       <header
         data-no-print="true"
-        className="sticky top-0 z-20 h-16 border-b border-[var(--border-color)] bg-[var(--bg-secondary)]/80 backdrop-blur-xl flex items-center justify-between px-4 sm:px-6 no-print"
+        className="sticky top-0 z-20 h-16 w-full max-w-full border-b border-[var(--border-color)] bg-[var(--bg-secondary)]/90 backdrop-blur-xl flex items-center justify-between px-3 sm:px-6 overflow-hidden no-print"
       >
         {/* Left: Mobile Toggle & Page Title */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="md:hidden p-2 rounded-lg border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="md:hidden p-2 rounded-lg border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)] active:scale-95 transition-all duration-150 shrink-0"
             aria-label="Open dashboard navigation menu"
           >
             <Menu className="w-5 h-5" />
           </button>
 
-          <div>
-            <h1 className="font-bold text-base sm:text-lg text-[var(--text-primary)] tracking-tight">
+          <div className="flex items-center min-w-0">
+            <h1 className="font-bold text-sm sm:text-base md:text-lg text-[var(--text-primary)] tracking-tight truncate max-w-[110px] xs:max-w-[160px] sm:max-w-none">
               {getPageTitle()}
             </h1>
           </div>
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2.5">
-          <ThemeToggle />
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          {/* Responsive ThemeToggle: icon on mobile/tablet, segmented on desktop */}
+          <div className="lg:hidden shrink-0">
+            <ThemeToggle variant="icon" />
+          </div>
+          <div className="hidden lg:block shrink-0">
+            <ThemeToggle variant="segmented" />
+          </div>
 
           <Link
             href="/analyzer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold transition-all shadow-sm active:scale-95 cursor-pointer"
+            title="Upload New Resume"
+            aria-label="Upload New Resume"
+            className="inline-flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold transition-all duration-150 shadow-xs active:scale-95 cursor-pointer shrink-0"
           >
             <Upload className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Upload New Resume</span>
-            <span className="sm:hidden">Upload</span>
           </Link>
 
           <Link
             href="/dashboard/profile"
-            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-[var(--bg-card)] border border-transparent hover:border-[var(--border-color)] transition-all cursor-pointer"
-            title="Account Settings"
+            className="flex items-center gap-1.5 p-1.5 sm:px-2 rounded-lg hover:bg-[var(--bg-card)] border border-transparent hover:border-[var(--border-color)] active:scale-[0.98] transition-all duration-150 cursor-pointer shrink-0"
+            title={`Account Settings (${user.name})`}
+            aria-label={`Account Settings (${user.name})`}
           >
-            <div className="w-7 h-7 rounded-md bg-[var(--accent)]/15 text-[var(--accent)] font-bold text-xs flex items-center justify-center border border-[var(--accent)]/20">
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-[var(--accent)]/15 text-[var(--accent)] font-bold text-xs flex items-center justify-center border border-[var(--accent)]/20 shrink-0">
               {user.name.charAt(0).toUpperCase()}
             </div>
             <span className="hidden md:inline font-semibold text-xs text-[var(--text-primary)] max-w-[120px] truncate">
@@ -131,7 +138,8 @@ export function UserDashboardHeader({ user }: UserDashboardHeaderProps) {
           <button
             onClick={() => logout()}
             title="Sign Out"
-            className="p-2 rounded-lg border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-red-400 hover:border-red-500/30 transition-all cursor-pointer"
+            aria-label="Sign Out"
+            className="p-2 rounded-lg border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--color-error)] hover:border-[var(--color-error)]/30 active:scale-95 transition-all duration-150 cursor-pointer shrink-0"
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -141,20 +149,21 @@ export function UserDashboardHeader({ user }: UserDashboardHeaderProps) {
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 md:hidden bg-black/60 backdrop-blur-sm animate-fade-in flex">
-          <div className="w-72 max-w-[85vw] h-full bg-[var(--bg-secondary)] border-r border-[var(--border-color)] p-5 flex flex-col justify-between shadow-2xl">
+          <div className="w-72 max-w-[85vw] h-full bg-[var(--bg-secondary)] border-r border-[var(--border-color)] p-5 flex flex-col justify-between shadow-2xl animate-scale-in">
             <div>
               <div className="flex items-center justify-between pb-4 border-b border-[var(--border-color)]">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-[var(--accent)] flex items-center justify-center text-white">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <span className="font-bold text-sm text-[var(--text-primary)]">
-                    Smart Resume AI
+                <div className="flex flex-col">
+                  <span className="font-bold text-sm tracking-tight text-[var(--text-primary)] leading-tight">
+                    Smart Resume
+                  </span>
+                  <span className="text-[10px] text-[var(--accent)] font-semibold tracking-wide uppercase">
+                    Career Dashboard
                   </span>
                 </div>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-1 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)] active:scale-95 transition-all duration-150"
+                  aria-label="Close menu"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -174,9 +183,9 @@ export function UserDashboardHeader({ user }: UserDashboardHeaderProps) {
                       href={item.href}
                       onClick={() => setMobileMenuOpen(false)}
                       className={cn(
-                        'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+                        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 active:scale-[0.99]',
                         isActive
-                          ? 'bg-[var(--accent)] text-white shadow-md'
+                          ? 'bg-[var(--accent)] text-white shadow-xs font-semibold'
                           : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)]'
                       )}
                     >
@@ -213,7 +222,7 @@ export function UserDashboardHeader({ user }: UserDashboardHeaderProps) {
                   setMobileMenuOpen(false);
                   logout();
                 }}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 text-xs font-semibold transition-all cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 active:scale-95 text-xs font-semibold transition-all duration-150 cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Sign Out</span>

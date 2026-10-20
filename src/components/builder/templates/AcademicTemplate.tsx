@@ -12,6 +12,11 @@ import {
   hasProjectsData,
   hasCertificationsData,
   getTemplateSpacing,
+  MailIcon,
+  PhoneIcon,
+  MapPinIcon,
+  GlobeIcon,
+  LinkedinIcon,
 } from './templateUtils';
 
 export function AcademicTemplate({
@@ -31,34 +36,36 @@ export function AcademicTemplate({
 
   return (
     <div
-      className={`w-full bg-white text-slate-900 font-serif select-text flex-1 flex flex-col min-h-full ${spacing.containerPadding} ${isMiniPreview ? "text-[7px] leading-tight" : `text-[13px] ${spacing.lineHeight}`}`}
+      className={`w-full bg-white text-slate-900 font-serif select-text flex-1 flex flex-col min-h-full ${spacing.containerPadding} ${
+        isMiniPreview ? 'text-[7px] leading-tight' : `text-[13px] ${spacing.lineHeight}`
+      }`}
       style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", serif' }}
     >
-      {/* HEADER: Academic CV Style */}
-      <header className={`text-center pb-3 ${spacing.headerMarginBottom} border-b border-slate-400 shrink-0`}>
+      {/* HEADER: Formal Academic CV Style */}
+      <header className={`text-center pb-3 ${spacing.headerMarginBottom} border-b-2 border-slate-900 shrink-0`}>
         <h1
-          className={`font-normal tracking-wide text-slate-950 ${
+          className={`font-normal tracking-wide text-slate-950 break-words ${
             isMiniPreview ? 'text-[13px]' : 'text-3xl'
           }`}
         >
           {personalInfo.fullName || 'YOUR NAME'}
         </h1>
         {personalInfo.headline && (
-          <p className={`italic text-slate-700 mt-0.5 ${isMiniPreview ? 'text-[8px]' : 'text-sm'}`}>
+          <p className={`italic text-slate-700 mt-0.5 break-words ${isMiniPreview ? 'text-[8px]' : 'text-sm'}`}>
             {personalInfo.headline}
           </p>
         )}
 
         {hasContactInfo(personalInfo) && (
           <div
-            className={`flex flex-wrap justify-center items-center gap-x-3 gap-y-0.5 mt-2 text-slate-600 ${
-              isMiniPreview ? 'text-[6px]' : 'text-[12.5px]'
+            className={`flex flex-wrap justify-center items-center gap-x-3 gap-y-0.5 mt-2 text-slate-700 ${
+              isMiniPreview ? 'text-[6px]' : 'text-[12px]'
             }`}
           >
             {personalInfo.location && <span>{personalInfo.location}</span>}
             {personalInfo.location && (personalInfo.phone || personalInfo.email) && <span>·</span>}
             {personalInfo.email && (
-              <a href={`mailto:${personalInfo.email}`} className="text-slate-900 hover:underline">
+              <a href={`mailto:${personalInfo.email}`} className="text-blue-900 hover:underline break-all">
                 {personalInfo.email}
               </a>
             )}
@@ -71,7 +78,7 @@ export function AcademicTemplate({
                   href={formatUrl(personalInfo.portfolio)}
                   target="_blank"
                   rel="noreferrer"
-                  className="hover:underline"
+                  className="text-blue-900 hover:underline break-all"
                 >
                   {cleanDomain(personalInfo.portfolio)}
                 </a>
@@ -84,7 +91,7 @@ export function AcademicTemplate({
                   href={formatUrl(personalInfo.linkedin)}
                   target="_blank"
                   rel="noreferrer"
-                  className="hover:underline"
+                  className="text-blue-900 hover:underline break-all"
                 >
                   {cleanDomain(personalInfo.linkedin)}
                 </a>
@@ -94,22 +101,32 @@ export function AcademicTemplate({
         )}
       </header>
 
-      {/* BODY SECTIONS: Academic Hierarchy */}
-      <div className={`${isMiniPreview ? "space-y-2" : spacing.sectionGap} flex-1`}>
-        {/* EDUCATION & HONORS (FIRST IN ACADEMIC CV) */}
+      {/* BODY SECTIONS: Scholarly CV Hierarchy */}
+      <div className={`${isMiniPreview ? 'space-y-2' : spacing.sectionGap} flex-1`}>
+        {/* 1. EDUCATION & ACADEMIC CREDENTIALS (FIRST IN ACADEMIC CV) */}
         {validEdu.length > 0 && (
           <section className="resume-section">
-            <h2 className={`font-bold uppercase tracking-widest text-slate-900 border-b border-slate-300 pb-1 ${spacing.headingMarginBottom} ${isMiniPreview ? 'text-[7.5px]' : 'text-[14.5px]'}`}>
+            <h2
+              className={`font-bold uppercase tracking-widest text-slate-950 border-b border-slate-300 pb-0.5 ${
+                spacing.headingMarginBottom
+              } ${isMiniPreview ? 'text-[7.5px]' : 'text-[14px]'}`}
+            >
               Education & Academic Credentials
             </h2>
-            <div className={isMiniPreview ? "space-y-1.5" : spacing.entryGap}>
+            <div className={isMiniPreview ? 'space-y-1.5' : spacing.entryGap}>
               {validEdu.map((edu) => (
                 <div key={edu.id} className="resume-entry">
-                  <div className="flex justify-between items-baseline font-bold">
+                  <div className="flex justify-between items-baseline font-bold flex-wrap gap-1">
                     <span className={isMiniPreview ? 'text-[7px]' : 'text-[14px]'}>{edu.degree}</span>
-                    <span className={`text-slate-600 font-normal ${isMiniPreview ? 'text-[6px]' : 'text-[12px]'}`}>{edu.graduationYear}</span>
+                    <span className={`text-slate-600 font-normal ${isMiniPreview ? 'text-[6px]' : 'text-[12px]'}`}>
+                      {edu.graduationYear}
+                    </span>
                   </div>
-                  <div className={`flex justify-between items-baseline italic text-slate-800 ${isMiniPreview ? 'text-[6.5px]' : 'text-[13px]'}`}>
+                  <div
+                    className={`flex justify-between items-baseline italic text-slate-800 flex-wrap gap-1 ${
+                      isMiniPreview ? 'text-[6.5px]' : 'text-[13px]'
+                    }`}
+                  >
                     <span>{edu.institution}</span>
                     {edu.location && <span className="not-italic text-slate-600">{edu.location}</span>}
                   </div>
@@ -126,31 +143,41 @@ export function AcademicTemplate({
           </section>
         )}
 
-        {/* RESEARCH PROFILE & SUMMARY */}
+        {/* 2. RESEARCH PROFILE / SUMMARY */}
         {summary?.trim() && (
           <section className="resume-section">
-            <h2 className={`font-bold uppercase tracking-widest text-slate-900 border-b border-slate-300 pb-1 ${spacing.headingMarginBottom} ${isMiniPreview ? 'text-[7.5px]' : 'text-[14.5px]'}`}>
-              Research Interests & Statement
+            <h2
+              className={`font-bold uppercase tracking-widest text-slate-950 border-b border-slate-300 pb-0.5 ${
+                spacing.headingMarginBottom
+              } ${isMiniPreview ? 'text-[7.5px]' : 'text-[14px]'}`}
+            >
+              Research Statement & Interests
             </h2>
-            <p className="text-slate-800 leading-relaxed text-justify">{summary}</p>
+            <p className="text-slate-800 leading-relaxed text-justify break-words [overflow-wrap:anywhere]">
+              {summary}
+            </p>
           </section>
         )}
 
-        {/* RESEARCH PROJECTS & PUBLICATIONS */}
+        {/* 3. PUBLICATIONS & WORKING PAPERS (Projects formatted as citations) */}
         {validProj.length > 0 && (
           <section className="resume-section">
-            <h2 className={`font-bold uppercase tracking-widest text-slate-900 border-b border-slate-300 pb-1 ${spacing.headingMarginBottom} ${isMiniPreview ? 'text-[7.5px]' : 'text-[14.5px]'}`}>
-              Research Projects & Working Papers
+            <h2
+              className={`font-bold uppercase tracking-widest text-slate-950 border-b border-slate-300 pb-0.5 ${
+                spacing.headingMarginBottom
+              } ${isMiniPreview ? 'text-[7.5px]' : 'text-[14px]'}`}
+            >
+              Peer-Reviewed Publications & Working Papers
             </h2>
-            <div className={isMiniPreview ? "space-y-1.5" : spacing.entryGap}>
-              {validProj.map((proj) => (
+            <div className={isMiniPreview ? 'space-y-1.5' : spacing.entryGap}>
+              {validProj.map((proj, idx) => (
                 <div key={proj.id} className="resume-entry">
-                  <div className="flex justify-between items-baseline font-bold">
-                    <span className={isMiniPreview ? 'text-[7px]' : 'text-[14px]'}>
-                      {proj.title}
+                  <div className="flex justify-between items-baseline font-bold flex-wrap gap-1">
+                    <span className={isMiniPreview ? 'text-[7px]' : 'text-[13.5px]'}>
+                      [{idx + 1}] &ldquo;{proj.title}&rdquo;
                       {proj.technologies && proj.technologies.length > 0 && (
                         <span className={`font-normal italic text-slate-600 ml-1.5 ${isMiniPreview ? 'text-[6px]' : 'text-[12px]'}`}>
-                          ({proj.technologies.join(', ')})
+                          — {proj.technologies.join(', ')}
                         </span>
                       )}
                     </span>
@@ -159,21 +186,23 @@ export function AcademicTemplate({
                         href={formatUrl(proj.link)}
                         target="_blank"
                         rel="noreferrer"
-                        className={`text-slate-600 font-normal hover:underline ${isMiniPreview ? 'text-[6px]' : 'text-[12px]'}`}
+                        className={`text-blue-900 font-normal hover:underline ${isMiniPreview ? 'text-[6px]' : 'text-[12px]'}`}
                       >
-                        {cleanDomain(proj.link)}
+                        [DOI/URL]
                       </a>
                     )}
                   </div>
                   {proj.description && (
-                    <p className="text-slate-700 mt-0.5 leading-relaxed">
+                    <p className="text-slate-700 mt-0.5 leading-relaxed break-words [overflow-wrap:anywhere]">
                       {proj.description}
                     </p>
                   )}
                   {proj.bullets && proj.bullets.length > 0 && (
-                    <ul className="list-disc list-outside ml-4 mt-0.5 ${spacing.bulletGap} text-slate-700 ${spacing.lineHeight} leading-relaxed">
+                    <ul
+                      className={`list-disc list-outside ml-4 mt-0.5 ${spacing.bulletGap} text-slate-700 ${spacing.lineHeight} leading-relaxed`}
+                    >
                       {proj.bullets.map((b, i) => (
-                        <li key={i}>{b}</li>
+                        <li key={i} className="break-words [overflow-wrap:anywhere]">{b}</li>
                       ))}
                     </ul>
                   )}
@@ -183,16 +212,20 @@ export function AcademicTemplate({
           </section>
         )}
 
-        {/* TEACHING & PROFESSIONAL APPOINTMENTS */}
+        {/* 4. ACADEMIC & RESEARCH APPOINTMENTS */}
         {validExp.length > 0 && (
           <section className="resume-section">
-            <h2 className={`font-bold uppercase tracking-widest text-slate-900 border-b border-slate-300 pb-1 ${spacing.headingMarginBottom} ${isMiniPreview ? 'text-[7.5px]' : 'text-[14.5px]'}`}>
-              Academic & Professional Appointments
+            <h2
+              className={`font-bold uppercase tracking-widest text-slate-950 border-b border-slate-300 pb-0.5 ${
+                spacing.headingMarginBottom
+              } ${isMiniPreview ? 'text-[7.5px]' : 'text-[14px]'}`}
+            >
+              Research & Teaching Appointments
             </h2>
-            <div className={isMiniPreview ? "space-y-1.5" : spacing.entryGap}>
+            <div className={isMiniPreview ? 'space-y-1.5' : spacing.entryGap}>
               {validExp.map((exp) => (
                 <div key={exp.id} className="resume-entry">
-                  <div className="flex justify-between items-baseline font-bold">
+                  <div className="flex justify-between items-baseline font-bold flex-wrap gap-1">
                     <span className={isMiniPreview ? 'text-[7px]' : 'text-[14px]'}>
                       {exp.role}, <span className="font-normal italic">{exp.company}</span>
                     </span>
@@ -201,9 +234,11 @@ export function AcademicTemplate({
                     </span>
                   </div>
                   {exp.bulletPoints && exp.bulletPoints.length > 0 && (
-                    <ul className="list-disc list-outside ml-4 mt-0.5 ${spacing.bulletGap} text-slate-700 ${spacing.lineHeight} leading-relaxed">
+                    <ul
+                      className={`list-disc list-outside ml-4 mt-0.5 ${spacing.bulletGap} text-slate-700 ${spacing.lineHeight} leading-relaxed`}
+                    >
                       {exp.bulletPoints.map((bp, i) => (
-                        <li key={i}>{bp}</li>
+                        <li key={i} className="break-words [overflow-wrap:anywhere]">{bp}</li>
                       ))}
                     </ul>
                   )}
@@ -213,28 +248,32 @@ export function AcademicTemplate({
           </section>
         )}
 
-        {/* METHODOLOGIES & SKILLS */}
+        {/* 5. METHODOLOGIES & RESEARCH SKILLS */}
         {hasSkillsData(skills) && (
           <section className="resume-section">
-            <h2 className={`font-bold uppercase tracking-widest text-slate-900 border-b border-slate-300 pb-1 ${spacing.headingMarginBottom} ${isMiniPreview ? 'text-[7.5px]' : 'text-[14.5px]'}`}>
-              Methodologies & Technical Competencies
+            <h2
+              className={`font-bold uppercase tracking-widest text-slate-950 border-b border-slate-300 pb-0.5 ${
+                spacing.headingMarginBottom
+              } ${isMiniPreview ? 'text-[7.5px]' : 'text-[14px]'}`}
+            >
+              Methodologies & Scholarly Tools
             </h2>
             <div className={`${spacing.bulletGap} text-slate-800 ${spacing.lineHeight}`}>
-              {skills.technical && skills.technical.length > 0 && (
-                <p>
-                  <strong>Research & Technical: </strong>
+              {skills?.technical && skills.technical.length > 0 && (
+                <p className="break-words">
+                  <strong>Quantitative & Methodological: </strong>
                   <span>{skills.technical.join(', ')}</span>
                 </p>
               )}
-              {skills.tools && skills.tools.length > 0 && (
-                <p>
-                  <strong>Software & Lab Tools: </strong>
+              {skills?.tools && skills.tools.length > 0 && (
+                <p className="break-words">
+                  <strong>Software, Lab & Analysis Tools: </strong>
                   <span>{skills.tools.join(', ')}</span>
                 </p>
               )}
-              {skills.soft && skills.soft.length > 0 && (
-                <p>
-                  <strong>Academic Leadership: </strong>
+              {skills?.soft && skills.soft.length > 0 && (
+                <p className="break-words">
+                  <strong>Academic Leadership & Pedagogy: </strong>
                   <span>{skills.soft.join(', ')}</span>
                 </p>
               )}
@@ -242,15 +281,19 @@ export function AcademicTemplate({
           </section>
         )}
 
-        {/* GRANTS & CERTIFICATIONS */}
+        {/* 6. GRANTS, HONORS & FELLOWSHIPS */}
         {validCerts.length > 0 && (
           <section className="resume-section">
-            <h2 className={`font-bold uppercase tracking-widest text-slate-900 border-b border-slate-300 pb-1 ${spacing.headingMarginBottom} ${isMiniPreview ? 'text-[7.5px]' : 'text-[14.5px]'}`}>
-              Grants, Honors & Certifications
+            <h2
+              className={`font-bold uppercase tracking-widest text-slate-950 border-b border-slate-300 pb-0.5 ${
+                spacing.headingMarginBottom
+              } ${isMiniPreview ? 'text-[7.5px]' : 'text-[14px]'}`}
+            >
+              Grants, Fellowships & Honors
             </h2>
             <div className={`${spacing.bulletGap} text-slate-800 ${spacing.lineHeight}`}>
               {validCerts.map((cert) => (
-                <div key={cert.id} className="resume-entry flex justify-between items-baseline">
+                <div key={cert.id} className="resume-entry flex justify-between items-baseline flex-wrap gap-1">
                   <span>
                     <strong>{cert.name}</strong> — {cert.issuer}
                   </span>
@@ -264,3 +307,5 @@ export function AcademicTemplate({
     </div>
   );
 }
+
+export { AcademicTemplate as AcademicResearchTemplate };

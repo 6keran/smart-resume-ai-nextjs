@@ -34,10 +34,10 @@ export default async function UserSkillsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[var(--border-color)] gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--text-primary)]">
-            Verified Skills
+            Skill Badges
           </h1>
           <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1">
-            Industry skill badges backed by timed, proctored assessments ({verifiedSkills.length} of {skills.length} verified).
+            Track your completed technical assessments and earned skill badges ({verifiedSkills.length} of {skills.length} passed).
           </p>
         </div>
         <Link
@@ -53,7 +53,7 @@ export default async function UserSkillsPage() {
       <div>
         <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-400 mb-3 flex items-center gap-1.5">
           <BadgeCheck className="w-4 h-4" />
-          <span>Verified Badges ({verifiedSkills.length})</span>
+          <span>Passed Badges ({verifiedSkills.length})</span>
         </h2>
 
         {verifiedSkills.length === 0 ? (
@@ -86,7 +86,7 @@ export default async function UserSkillsPage() {
                         {s.skillName}
                       </h3>
                       <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">
-                        VERIFIED BADGE
+                        PASSED BADGE
                       </span>
                     </div>
                   </div>
@@ -98,7 +98,7 @@ export default async function UserSkillsPage() {
                 </div>
 
                 <p className="text-xs text-[var(--text-secondary)] line-clamp-2">
-                  {s.description || 'Verified via Smart Resume AI skill evaluation.'}
+                  {s.description || 'Passed Smart Resume AI skill assessment.'}
                 </p>
 
                 <div className="pt-3 border-t border-emerald-500/20 flex items-center justify-between text-xs">

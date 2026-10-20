@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Sparkles,
   LayoutDashboard,
   FileText,
   FileCheck2,
@@ -20,6 +19,10 @@ import {
   ChevronRight,
   ExternalLink,
   Compass,
+  FileEdit,
+  FileSearch,
+  Bookmark,
+  CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUserProfile } from '@/components/user/UserContext';
@@ -38,41 +41,51 @@ export function UserDashboardSidebar({ user }: UserDashboardSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { logout } = useUserProfile();
 
-  const navItems = [
-    { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
+  const primaryNavItems = [
+    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { label: 'Resume Builder', href: '/builder', icon: FileEdit },
+    { label: 'Resume Analyser', href: '/analyzer', icon: FileSearch },
+    { label: 'AI Resume Improver', href: '/improver', icon: Wand2 },
+    { label: 'Job Finder', href: '/jobs', icon: Briefcase },
+  ];
+
+  const trackingNavItems = [
+    { label: 'Application Tracker', href: '/dashboard/applications', icon: Send },
+    { label: 'Saved Jobs', href: '/dashboard/applications?status=Saved', icon: Bookmark },
+    { label: 'Applied Jobs', href: '/dashboard/applications?status=Applied', icon: CheckCircle2 },
+  ];
+
+  const libraryNavItems = [
+    { label: 'Resume Library', href: '/dashboard/resumes', icon: FileText },
+    { label: 'Verified Skills', href: '/dashboard/skills', icon: BadgeCheck },
     { label: 'Career Guidance', href: '/guidance', icon: Compass },
-    { label: 'My Resumes', href: '/dashboard/resumes', icon: FileText },
-    { label: 'My Improvements', href: '/dashboard/improvements', icon: Wand2 },
-    { label: 'Job Matches', href: '/dashboard/jobs', icon: Briefcase },
-    { label: 'My Applications', href: '/dashboard/applications', icon: Send },
-    { label: 'My Skills', href: '/dashboard/skills', icon: BadgeCheck },
-    { label: 'My Assessments', href: '/dashboard/assessments', icon: FileCheck2 },
-    { label: 'My Certificates', href: '/dashboard/certificates', icon: Award },
-    { label: 'My Courses', href: '/dashboard/courses', icon: BookOpen },
-    { label: 'My Profile', href: '/dashboard/profile', icon: User },
+    { label: 'Profile & Settings', href: '/dashboard/profile', icon: User },
   ];
 
   return (
     <aside
       data-no-print="true"
       className={cn(
-        'hidden md:flex flex-col border-r border-[var(--border-color)] bg-[var(--bg-primary)] transition-all duration-300 relative z-30 shrink-0 h-screen sticky top-0 no-print',
+        'hidden md:flex flex-col border-r border-[var(--border-color)] bg-[var(--bg-primary)] transition-[width] duration-200 cubic-bezier(0.16, 1, 0.3, 1) relative z-30 shrink-0 h-screen sticky top-0 no-print',
         collapsed ? 'w-20' : 'w-64'
       )}
     >
-      {/* Brand Header */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-[var(--border-color)]">
-        <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden group">
-          <div className="w-8 h-8 rounded-lg bg-[var(--accent)] flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          {!collapsed && (
-            <div className="flex flex-col leading-tight overflow-hidden">
-              <span className="font-bold text-sm tracking-tight text-[var(--text-primary)]">
+      {/* Brand Header - Text-only branding */}
+      <div className="h-16 flex items-center justify-between px-4 border-b border-[var(--border-color)] shrink-0">
+        <Link href="/dashboard" className="flex items-center overflow-hidden min-w-0">
+          {!collapsed ? (
+            <div className="flex flex-col min-w-0">
+              <span className="font-bold text-[16.5px] tracking-tight text-[var(--text-primary)] leading-tight whitespace-nowrap">
                 Smart Resume
               </span>
-              <span className="text-[10px] tracking-wider font-semibold text-[var(--accent)] uppercase">
+              <span className="text-[11.5px] text-[var(--accent)] font-semibold tracking-wide uppercase whitespace-nowrap">
                 Career Dashboard
+              </span>
+            </div>
+          ) : (
+            <div className="w-8 flex items-center justify-center">
+              <span className="font-bold text-[17px] text-[var(--accent)] tracking-tight">
+                SR
               </span>
             </div>
           )}
@@ -80,9 +93,15 @@ export function UserDashboardSidebar({ user }: UserDashboardSidebarProps) {
       </div>
 
       {/* Navigation Links */}
-      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-        <div className="space-y-1">
-          {navItems.map((item) => {
+      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
+        {/* Core Career Workspace */}
+        <div className="space-y-1.5">
+          {!collapsed && (
+            <p className="px-3.5 text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2.5 select-none">
+              Workspace
+            </p>
+          )}
+          {primaryNavItems.map((item) => {
             const Icon = item.icon;
             const isActive =
               item.href === '/dashboard'
@@ -95,51 +114,105 @@ export function UserDashboardSidebar({ user }: UserDashboardSidebarProps) {
                 href={item.href}
                 title={collapsed ? item.label : undefined}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all group relative',
+                  'w-full h-[45px] flex items-center rounded-xl text-[15px] font-medium transition-all duration-150 active:scale-[0.99] group relative select-none',
+                  collapsed ? 'justify-center px-0' : 'justify-start gap-3.5 px-3.5',
                   isActive
-                    ? 'bg-[var(--accent)] text-white'
+                    ? 'bg-[var(--accent)] text-white shadow-xs font-semibold'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]'
                 )}
               >
-                <Icon
-                  className={cn(
-                    'w-4 h-4 shrink-0 transition-transform group-hover:scale-105',
-                    isActive ? 'text-white' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
-                  )}
-                />
-                {!collapsed && <span className="truncate">{item.label}</span>}
+                <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                  <Icon
+                    className={cn(
+                      'w-5 h-5 shrink-0 transition-transform duration-150 group-hover:scale-105',
+                      isActive ? 'text-white' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                    )}
+                  />
+                </div>
+                {!collapsed && <span className="truncate flex-1 text-left leading-normal">{item.label}</span>}
               </Link>
             );
           })}
         </div>
 
-        {/* Public AI Tools Shortcut */}
-        <div className="pt-4 mt-4 border-t border-[var(--border-color)]">
+        {/* Application Tracking */}
+        <div className="pt-3 border-t border-[var(--border-color)] space-y-1.5">
           {!collapsed && (
-            <p className="px-3 text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
-              Career Tools
+            <p className="px-3.5 text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2.5 select-none">
+              Applications
             </p>
           )}
-          <div className="space-y-1">
-            <Link
-              href="/analyzer"
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-all'
-              )}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
-              {!collapsed && <span>Resume Analyzer</span>}
-            </Link>
-            <Link
-              href="/jobs"
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-all'
-              )}
-            >
-              <Briefcase className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
-              {!collapsed && <span>Search Live Jobs</span>}
-            </Link>
-          </div>
+          {trackingNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === '/dashboard/applications' && (
+              item.href.includes('status=')
+                ? pathname.includes(item.href)
+                : !item.href.includes('status=')
+            );
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                title={collapsed ? item.label : undefined}
+                className={cn(
+                  'w-full h-[45px] flex items-center rounded-xl text-[15px] font-medium transition-all duration-150 active:scale-[0.99] group relative select-none',
+                  collapsed ? 'justify-center px-0' : 'justify-start gap-3.5 px-3.5',
+                  isActive
+                    ? 'bg-[var(--accent)] text-white shadow-xs font-semibold'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]'
+                )}
+              >
+                <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                  <Icon
+                    className={cn(
+                      'w-5 h-5 shrink-0 transition-transform duration-150 group-hover:scale-105',
+                      isActive ? 'text-white' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                    )}
+                  />
+                </div>
+                {!collapsed && <span className="truncate flex-1 text-left leading-normal">{item.label}</span>}
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Career Library & Account */}
+        <div className="pt-3 border-t border-[var(--border-color)] space-y-1.5">
+          {!collapsed && (
+            <p className="px-3.5 text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2.5 select-none">
+              Library & Settings
+            </p>
+          )}
+          {libraryNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                title={collapsed ? item.label : undefined}
+                className={cn(
+                  'w-full h-[45px] flex items-center rounded-xl text-[15px] font-medium transition-all duration-150 active:scale-[0.99] group relative select-none',
+                  collapsed ? 'justify-center px-0' : 'justify-start gap-3.5 px-3.5',
+                  isActive
+                    ? 'bg-[var(--accent)] text-white shadow-xs font-semibold'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]'
+                )}
+              >
+                <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                  <Icon
+                    className={cn(
+                      'w-5 h-5 shrink-0 transition-transform duration-150 group-hover:scale-105',
+                      isActive ? 'text-white' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                    )}
+                  />
+                </div>
+                {!collapsed && <span className="truncate flex-1 text-left leading-normal">{item.label}</span>}
+              </Link>
+            );
+          })}
         </div>
       </div>
 
@@ -171,7 +244,7 @@ export function UserDashboardSidebar({ user }: UserDashboardSidebarProps) {
             <button
               onClick={() => logout()}
               title="Sign Out"
-              className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/10 active:scale-95 transition-all duration-150 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>
@@ -180,7 +253,7 @@ export function UserDashboardSidebar({ user }: UserDashboardSidebarProps) {
 
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="w-full flex items-center justify-center py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg hover:bg-[var(--bg-card)] transition-colors cursor-pointer"
+          className="w-full flex items-center justify-center py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg hover:bg-[var(--bg-card)] active:scale-95 transition-all duration-150 cursor-pointer"
           title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
         >
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}

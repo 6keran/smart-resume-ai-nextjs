@@ -4,13 +4,18 @@ import { improveResumeSection } from '@/lib/gemini';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { sectionName, originalContent } = body;
+    const { sectionName, originalContent, jobDescription, jobTitle } = body;
 
     if (!originalContent) {
       return NextResponse.json({ message: 'Content is required.' }, { status: 400 });
     }
 
-    const result = await improveResumeSection(sectionName || 'section', originalContent);
+    const result = await improveResumeSection(
+      sectionName || 'section',
+      originalContent,
+      jobDescription,
+      jobTitle
+    );
     return NextResponse.json(result);
   } catch (err) {
     console.error('API /api/resume/improve error:', err);

@@ -61,6 +61,8 @@ data/*.db-shm
 data/*.db-wal
 data/*.sqlite
 data/*.sqlite3
+data/*.backup*
+data/*.bak
 *.db-shm
 *.db-wal
 
@@ -73,6 +75,8 @@ out/
 # Browser diagnostic profiles and generated artifacts
 scripts/.chrome_*/
 scripts/.edge_*/
+scripts/*.png
+scripts/mobile_audit_baseline.json
 scripts/login_*.png
 scripts/analyze_dump.mjs
 scripts/downloaded_layout.js

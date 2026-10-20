@@ -260,23 +260,23 @@ export const INITIAL_ANALYSIS_RESULT: ResumeAnalysisResult = {
     {
       id: 'str_1',
       section: 'Work Experience',
-      title: 'Strong Quantifiable Achievements',
+      title: 'Quantified Bullet Points',
       description:
-        'Bullet points include explicit metrics ($180K cost savings, 42% query latency reduction, 4M+ MAU) which drastically improve ATS ranking and recruiter conversion.',
+        'Experience entries include measurable figures demonstrating project scope and outcomes.',
     },
     {
       id: 'str_2',
       section: 'Skills Coverage',
-      title: 'High-Demand Core Technologies',
+      title: 'Core Technical Competencies',
       description:
-        'Strong overlap with Tier-1 engineering criteria: Python, TypeScript, React, PostgreSQL, and cloud containerization technologies are prominent and consistently formatted.',
+        'Includes modern technical stack keywords such as Python, TypeScript, React, and PostgreSQL.',
     },
     {
       id: 'str_3',
-      section: 'Structure & ATS Parseability',
-      title: 'Compliant Section Hierarchy',
+      section: 'Structure',
+      title: 'Standard Section Hierarchy',
       description:
-        'Standardized headings (Summary, Skills, Experience, Education, Projects) enable 100% token extraction accuracy across modern parsers (Greenhouse, Lever, Workday).',
+        'Standardized headings (Summary, Skills, Experience, Education) support straightforward ATS parsing.',
     },
   ],
   weaknesses: [
@@ -321,7 +321,7 @@ export const INITIAL_ANALYSIS_RESULT: ResumeAnalysisResult = {
       originalText: 'Transitioned monolith to containerized Go/Python microservices...',
       improvedText:
         'Transitioned monolith to event-driven Go/Python microservices via Kafka, cutting cloud infrastructure costs by $180,000 annually.',
-      impact: '+6 ATS Points',
+      impact: 'Keyword Relevance',
     },
     {
       id: 'rec_2',
@@ -332,7 +332,7 @@ export const INITIAL_ANALYSIS_RESULT: ResumeAnalysisResult = {
       originalText: 'Mentored 8 mid-level engineers...',
       improvedText:
         'Mentored 8 mid-level engineers with 3 receiving senior promotions within 14 months; boosted team sprint velocity by 28%.',
-      impact: '+4 ATS Points',
+      impact: 'Quantified Impact',
     },
   ],
   topSuggestions: [
@@ -380,7 +380,7 @@ export const INITIAL_ANALYSIS_RESULT: ResumeAnalysisResult = {
     },
   ],
   summaryFeedback:
-    'This resume demonstrates high caliber engineering execution with clear, quantified impacts. Minor optimizations around automated testing keywords and expanded event-driven architectures will elevate this profile into the 90th percentile of ATS applicant pools.',
+    'This resume demonstrates high caliber engineering execution with clear, quantified impacts. Targeted optimizations around automated testing keywords and expanded event-driven architectures will improve keyword coverage and technical depth for senior engineering evaluations.',
   analyzedAt: new Date().toISOString(),
 };
 
@@ -395,7 +395,7 @@ export const INITIAL_IMPROVEMENTS: ImprovementItem[] = [
       'High-impact Staff / Senior Full Stack & AI Engineer with 6+ years spearheading distributed systems and production LLM/RAG pipelines at enterprise scale. Engineered resilient microservice ecosystems serving 4M+ monthly active users at 99.98% SLA reliability. Deep expertise across TypeScript, Python, PostgreSQL, AWS EKS, and high-throughput vector retrieval architectures.',
     reasoning:
       'Elevated seniority signaling with active authority verbs ("spearheading", "engineered resilient ecosystems") and tightened SLA metric terminology without inventing unverified facts.',
-    metricImpact: '+8 ATS Score & Recruiter Engagement',
+    metricImpact: 'Recruiter Engagement & Seniority',
     status: 'pending',
   },
   {
@@ -408,7 +408,7 @@ export const INITIAL_IMPROVEMENTS: ImprovementItem[] = [
       'Architected high-throughput semantic search and RAG platform with sub-80ms p95 latency across 2.5M daily enterprise queries, slashing median response latency by 42%.',
     reasoning:
       'Added standard industry latency benchmark (p95) to quantify responsiveness rigorously.',
-    metricImpact: '+5 Technical Depth Score',
+    metricImpact: 'Technical Rigor & Metrics',
     status: 'pending',
   },
   {
@@ -421,7 +421,7 @@ export const INITIAL_IMPROVEMENTS: ImprovementItem[] = [
       'Engineered highly available PostgreSQL read-replica cluster coupled with Redis distributed caching layer, scaling throughput by 716% (1,200 to 9,800 QPS) under critical peak burst loads.',
     reasoning:
       'Explicitly calculates the percentage growth (+716%) which draws recruiters’ eyes directly to the business and architectural win.',
-    metricImpact: '+6 System Scale Visibility',
+    metricImpact: 'System Scale & Performance',
     status: 'pending',
   },
 ];

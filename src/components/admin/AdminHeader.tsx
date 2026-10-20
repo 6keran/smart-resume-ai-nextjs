@@ -85,19 +85,19 @@ export function AdminHeader({ adminEmail, adminRole }: AdminHeaderProps) {
     <>
       <header
         data-no-print="true"
-        className="sticky top-0 z-20 h-16 border-b border-[var(--border-color)] bg-[var(--bg-secondary)]/90 backdrop-blur-xl flex items-center justify-between px-4 sm:px-6 shadow-sm no-print"
+        className="sticky top-0 z-20 h-16 w-full max-w-full border-b border-[var(--border-color)] bg-[var(--bg-secondary)]/90 backdrop-blur-xl flex items-center justify-between px-3 sm:px-6 shadow-sm overflow-hidden no-print"
       >
         {/* Left: Mobile Toggle & Page Title */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="md:hidden p-2 rounded-lg border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="md:hidden p-2 rounded-lg border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] shrink-0"
             aria-label="Open admin navigation menu"
           >
             <Menu className="w-5 h-5" />
           </button>
 
-          <div className="flex flex-col text-left">
+          <div className="flex flex-col text-left min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase font-extrabold text-[var(--accent)] tracking-wider">
                 Admin Console
@@ -107,27 +107,33 @@ export function AdminHeader({ adminEmail, adminRole }: AdminHeaderProps) {
                 Live DB
               </span>
             </div>
-            <h2 className="text-sm sm:text-base font-extrabold text-[var(--text-primary)] truncate">
+            <h2 className="text-sm sm:text-base font-extrabold text-[var(--text-primary)] truncate max-w-[110px] xs:max-w-[170px] sm:max-w-none">
               {getPageTitle()}
             </h2>
           </div>
         </div>
 
         {/* Right: Real Admin Identity */}
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          {/* Responsive ThemeToggle: icon on mobile/tablet, segmented on desktop */}
+          <div className="lg:hidden shrink-0">
+            <ThemeToggle variant="icon" />
+          </div>
+          <div className="hidden lg:block shrink-0">
+            <ThemeToggle variant="segmented" />
+          </div>
 
           <Link
             href="/"
             target="_blank"
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)] text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)] text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors shrink-0"
           >
             <ExternalLink className="w-3 h-3" />
             Public App
           </Link>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-color)]">
-            <div className="w-6 h-6 rounded-lg bg-[var(--accent)]/15 text-[var(--accent)] flex items-center justify-center font-bold text-xs">
+          <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-color)] shrink-0">
+            <div className="w-6 h-6 rounded-lg bg-[var(--accent)]/15 text-[var(--accent)] flex items-center justify-center font-bold text-xs shrink-0">
               <ShieldCheck className="w-3.5 h-3.5" />
             </div>
             <div className="hidden sm:flex flex-col text-left leading-tight">
@@ -143,7 +149,7 @@ export function AdminHeader({ adminEmail, adminRole }: AdminHeaderProps) {
           <button
             onClick={handleSignOut}
             disabled={isLoggingOut}
-            className="p-2 rounded-lg border border-[var(--border-color)] text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
+            className="p-2 rounded-lg border border-[var(--border-color)] text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors shrink-0"
             title="Sign Out"
             aria-label="Sign Out"
           >

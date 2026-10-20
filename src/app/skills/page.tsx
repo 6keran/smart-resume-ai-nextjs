@@ -104,21 +104,17 @@ export default function SkillVerificationPage() {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border-color)] pb-6">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 mb-2">
-            <BadgeCheck className="w-3.5 h-3.5" />
-            Verified Career Credentials
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] tracking-tight">
-            Skill Verification Platform
+          <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] tracking-tight">
+            Skill Assessments
           </h1>
           <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1">
-            Validate your technical proficiency with proctored assessments and earn cryptographic digital certificates.
+            Test your proficiency across key technical topics and track your assessment results.
           </p>
         </div>
 
         <button
           onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-2 h-[42px] px-4 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors"
+          className="inline-flex items-center gap-2 h-[42px] px-4 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Add Skill
@@ -128,13 +124,13 @@ export default function SkillVerificationPage() {
       {/* Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <GlassCard className="p-5 flex items-start gap-4">
-          <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-            <ShieldCheck className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-lg bg-[var(--accent-subtle)] text-[var(--accent)] flex items-center justify-center shrink-0">
+            <Clock className="w-5 h-5" />
           </div>
           <div className="text-left space-y-1">
-            <h4 className="text-sm font-bold text-[var(--text-primary)]">Proctored Environment</h4>
+            <h4 className="text-sm font-semibold text-[var(--text-primary)]">Timed Questions</h4>
             <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-              Browser focus and visibility tracking guarantee credible testing integrity for hiring managers.
+              10 curated questions spanning code output, debugging, and practical concepts.
             </p>
           </div>
         </GlassCard>
@@ -144,21 +140,21 @@ export default function SkillVerificationPage() {
             <Award className="w-5 h-5" />
           </div>
           <div className="text-left space-y-1">
-            <h4 className="text-sm font-bold text-[var(--text-primary)]">Verifiable Credentials</h4>
+            <h4 className="text-sm font-semibold text-[var(--text-primary)]">Passing Benchmark</h4>
             <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-              Earn an A4 Certificate of Verification with unique cryptographic ID upon scoring 7/10 or higher.
+              Score 7/10 (70%) or higher to demonstrate subject proficiency.
             </p>
           </div>
         </GlassCard>
 
         <GlassCard className="p-5 flex items-start gap-4">
-          <div className="w-10 h-10 rounded-lg bg-[var(--accent-subtle)] text-[var(--accent)] flex items-center justify-center shrink-0">
-            <Clock className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-5 h-5" />
           </div>
           <div className="text-left space-y-1">
-            <h4 className="text-sm font-semibold text-[var(--text-primary)]">20-Minute Assessments</h4>
+            <h4 className="text-sm font-semibold text-[var(--text-primary)]">Profile Records</h4>
             <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-              10 curated questions spanning code output, debugging, and practical engineering challenges.
+              Assessment scores and completion dates are saved to your profile dashboard.
             </p>
           </div>
         </GlassCard>
@@ -170,7 +166,7 @@ export default function SkillVerificationPage() {
           <div>
             <h2 className="text-lg font-bold text-[var(--text-primary)]">My Skills</h2>
             <p className="text-xs text-[var(--text-secondary)]">
-              Manage claimed skills, review verified credentials, or launch assessments.
+              Manage your skills and launch technical assessments.
             </p>
           </div>
           <span className="text-xs font-semibold text-[var(--text-secondary)]">
@@ -183,7 +179,7 @@ export default function SkillVerificationPage() {
             <Award className="w-8 h-8 text-[var(--text-secondary)] mx-auto opacity-50" />
             <p className="text-sm font-semibold text-[var(--text-primary)]">No skills added yet</p>
             <p className="text-xs text-[var(--text-secondary)]">
-              Add skills from the directory below to take assessments and earn verified credentials.
+              Add skills from the directory below to take assessments.
             </p>
           </GlassCard>
         ) : (

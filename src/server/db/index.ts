@@ -347,6 +347,23 @@ export function getDb(): DatabaseClient {
     CREATE INDEX IF NOT EXISTS idx_improvements_user ON resume_improvements(user_id);
   `);
 
+  // 16b. Resume Versions Table
+  dbInstance.exec(`
+    CREATE TABLE IF NOT EXISTS resume_versions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      resume_id TEXT,
+      version_number INTEGER NOT NULL DEFAULT 1,
+      resume_data TEXT NOT NULL,
+      change_summary TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_resume_ver_user ON resume_versions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_resume_ver_res ON resume_versions(resume_id);
+    CREATE INDEX IF NOT EXISTS idx_resume_ver_order ON resume_versions(user_id, resume_id, version_number DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_resume_ver_unique ON resume_versions(user_id, resume_id, version_number);
+  `);
+
   // 17. Certificates Table
   dbInstance.exec(`
     CREATE TABLE IF NOT EXISTS certificates (
@@ -450,12 +467,30 @@ export function getDb(): DatabaseClient {
     "ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'USER';",
     'ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1;',
     'ALTER TABLE users ADD COLUMN last_login_at TEXT;',
+    'ALTER TABLE job_applications ADD COLUMN resume_id TEXT;',
+    'ALTER TABLE job_applications ADD COLUMN applied_confirmed_at TEXT;',
+    'ALTER TABLE job_applications ADD COLUMN description_snippet TEXT;',
+    'ALTER TABLE job_applications ADD COLUMN salary TEXT;',
+    'ALTER TABLE resumes ADD COLUMN resume_data TEXT;',
   ];
   for (const sql of migrateColumns) {
     try {
       dbInstance.exec(sql);
     } catch {
       // Column already exists or table updated
+    }
+  }
+
+  const migrateIndexes = [
+    'CREATE INDEX IF NOT EXISTS idx_resumes_user ON resumes(user_id);',
+    'CREATE INDEX IF NOT EXISTS idx_resume_ver_order ON resume_versions(user_id, resume_id, version_number DESC);',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_resume_ver_unique ON resume_versions(user_id, resume_id, version_number);',
+  ];
+  for (const sql of migrateIndexes) {
+    try {
+      dbInstance.exec(sql);
+    } catch {
+      // Index already exists
     }
   }
 
@@ -936,7 +971,15 @@ export async function registerUser(data: {
     throw new Error('Password must be at least 6 characters long.');
   }
 
-  const existing = (await db.prepare('SELECT id, email, password_hash, role, is_active, created_at FROM users WHERE LOWER(email) = ?').get(trimmedEmail)) as any;
+  const existing = (await db.prepare(`
+    SELECT id, email, password_hash, role, is_active, created_at
+    FROM users
+    WHERE LOWER(email) = ?
+    ORDER BY 
+      CASE WHEN password_hash IS NOT NULL AND length(trim(password_hash)) > 0 THEN 1 ELSE 0 END DESC,
+      updated_at DESC
+    LIMIT 1
+  `).get(trimmedEmail)) as any;
   const now = new Date().toISOString();
 
   let userId: string;
@@ -1080,6 +1123,10 @@ export async function loginUser(data: {
     SELECT id, name, email, password_hash, role, is_active, created_at, updated_at, last_login_at, last_active_at
     FROM users
     WHERE LOWER(email) = ?
+    ORDER BY 
+      CASE WHEN password_hash IS NOT NULL AND length(trim(password_hash)) > 0 THEN 1 ELSE 0 END DESC,
+      updated_at DESC
+    LIMIT 1
   `).get(trimmedEmail) as any;
 
   if (!user || !user.password_hash) {
@@ -3343,7 +3390,9 @@ export async function getUserResumes(userId: string) {
       r.file_type,
       r.uploaded_at,
       r.parsed_successfully,
+      r.resume_data,
       (SELECT COUNT(*) FROM resume_analyses WHERE resume_id = r.id AND user_id = r.user_id) as analyses_count,
+      (SELECT COUNT(*) FROM resume_versions WHERE resume_id = r.id AND user_id = r.user_id) as versions_count,
       (SELECT ats_score FROM resume_analyses WHERE resume_id = r.id AND user_id = r.user_id ORDER BY analyzed_at DESC LIMIT 1) as latest_ats_score,
       (SELECT id FROM resume_analyses WHERE resume_id = r.id AND user_id = r.user_id ORDER BY analyzed_at DESC LIMIT 1) as latest_analysis_id
     FROM resumes r
@@ -3353,8 +3402,10 @@ export async function getUserResumes(userId: string) {
 
   return rows.map((r) => ({
     ...r,
+    resumeData: r.resume_data ? (typeof r.resume_data === 'string' ? JSON.parse(r.resume_data) : r.resume_data) : null,
     parsedSuccessfully: Boolean(r.parsed_successfully),
     latestAtsScore: r.latest_ats_score !== null ? Math.round(r.latest_ats_score) : null,
+    versionsCount: Number(r.versions_count || 0),
   }));
 }
 
@@ -3459,30 +3510,88 @@ export async function createJobApplication(userId: string, data: {
   appliedAt?: string;
   status?: string;
   notes?: string;
+  resumeId?: string;
+  appliedConfirmedAt?: string;
+  descriptionSnippet?: string;
+  salary?: string;
 }) {
   const db = getDb();
-  const id = `app_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const cleanTitle = data.jobTitle.trim();
+  const cleanCompany = data.company.trim();
+
+  // Deduplication check: verify if an application for this user and job already exists
+  let existing: any = null;
+  if (data.jobId) {
+    existing = await db.prepare('SELECT * FROM job_applications WHERE user_id = ? AND job_id = ?').get(userId, data.jobId);
+  }
+  if (!existing && cleanCompany && cleanTitle) {
+    existing = await db.prepare(
+      'SELECT * FROM job_applications WHERE user_id = ? AND LOWER(company) = LOWER(?) AND LOWER(job_title) = LOWER(?)'
+    ).get(userId, cleanCompany, cleanTitle);
+  }
+
   const now = new Date().toISOString();
+
+  if (existing) {
+    // Update existing record rather than creating a duplicate
+    const newStatus = data.status || existing.status;
+    const newAppliedAt = data.appliedAt || existing.applied_at;
+    const newResumeId = data.resumeId !== undefined ? data.resumeId : existing.resume_id;
+    const newNotes = data.notes !== undefined ? data.notes : existing.notes;
+    const newConfirmedAt = data.appliedConfirmedAt !== undefined ? data.appliedConfirmedAt : existing.applied_confirmed_at;
+    const newJobUrl = data.jobUrl || existing.job_url;
+
+    await db.prepare(`
+      UPDATE job_applications
+      SET status = ?, applied_at = ?, resume_id = ?, notes = ?, applied_confirmed_at = ?, job_url = ?, updated_at = ?
+      WHERE id = ? AND user_id = ?
+    `).run(newStatus, newAppliedAt, newResumeId, newNotes, newConfirmedAt, newJobUrl, now, existing.id, userId);
+
+    return {
+      id: existing.id,
+      userId,
+      jobId: existing.job_id,
+      jobTitle: existing.job_title,
+      company: existing.company,
+      location: existing.location,
+      source: existing.source,
+      jobUrl: newJobUrl,
+      appliedAt: newAppliedAt,
+      status: newStatus,
+      notes: newNotes,
+      resumeId: newResumeId,
+      appliedConfirmedAt: newConfirmedAt,
+      createdAt: existing.created_at,
+      updatedAt: now,
+    };
+  }
+
+  const id = `app_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const appliedAt = data.appliedAt || now.split('T')[0];
   const status = data.status || 'Applied';
 
   await db.prepare(`
     INSERT INTO job_applications (
       id, user_id, job_id, job_title, company, location, source,
-      job_url, applied_at, status, notes, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      job_url, applied_at, status, notes, resume_id, applied_confirmed_at,
+      description_snippet, salary, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     userId,
     data.jobId || null,
-    data.jobTitle.trim(),
-    data.company.trim(),
+    cleanTitle,
+    cleanCompany,
     data.location?.trim() || null,
     data.source?.trim() || 'Manual',
     data.jobUrl?.trim() || null,
     appliedAt,
     status,
     data.notes?.trim() || null,
+    data.resumeId || null,
+    data.appliedConfirmedAt || (status === 'Applied' ? now : null),
+    data.descriptionSnippet?.trim() || null,
+    data.salary?.trim() || null,
     now,
     now
   );
@@ -3491,14 +3600,18 @@ export async function createJobApplication(userId: string, data: {
     id,
     userId,
     jobId: data.jobId || null,
-    jobTitle: data.jobTitle.trim(),
-    company: data.company.trim(),
+    jobTitle: cleanTitle,
+    company: cleanCompany,
     location: data.location || null,
     source: data.source || 'Manual',
     jobUrl: data.jobUrl || null,
     appliedAt,
     status,
     notes: data.notes || null,
+    resumeId: data.resumeId || null,
+    appliedConfirmedAt: data.appliedConfirmedAt || (status === 'Applied' ? now : null),
+    descriptionSnippet: data.descriptionSnippet || null,
+    salary: data.salary || null,
     createdAt: now,
     updatedAt: now,
   };
@@ -3513,6 +3626,10 @@ export async function updateJobApplication(userId: string, applicationId: string
   appliedAt?: string;
   status?: string;
   notes?: string;
+  resumeId?: string;
+  appliedConfirmedAt?: string;
+  descriptionSnippet?: string;
+  salary?: string;
 }) {
   const db = getDb();
   const existing = await db.prepare('SELECT * FROM job_applications WHERE id = ? AND user_id = ?').get(applicationId, userId) as any;
@@ -3531,6 +3648,10 @@ export async function updateJobApplication(userId: string, applicationId: string
         applied_at = COALESCE(?, applied_at),
         status = COALESCE(?, status),
         notes = COALESCE(?, notes),
+        resume_id = COALESCE(?, resume_id),
+        applied_confirmed_at = COALESCE(?, applied_confirmed_at),
+        description_snippet = COALESCE(?, description_snippet),
+        salary = COALESCE(?, salary),
         updated_at = ?
     WHERE id = ? AND user_id = ?
   `).run(
@@ -3542,12 +3663,633 @@ export async function updateJobApplication(userId: string, applicationId: string
     data.appliedAt !== undefined ? data.appliedAt : null,
     data.status !== undefined ? data.status : null,
     data.notes !== undefined ? data.notes.trim() : null,
+    data.resumeId !== undefined ? data.resumeId : null,
+    data.appliedConfirmedAt !== undefined ? data.appliedConfirmedAt : null,
+    data.descriptionSnippet !== undefined ? data.descriptionSnippet.trim() : null,
+    data.salary !== undefined ? data.salary.trim() : null,
     now,
     applicationId,
     userId
   );
 
   return await db.prepare('SELECT * FROM job_applications WHERE id = ? AND user_id = ?').get(applicationId, userId);
+}
+
+export async function confirmJobApplication(userId: string, applicationId: string, status: string, resumeId?: string) {
+  const db = getDb();
+  const existing = await db.prepare('SELECT * FROM job_applications WHERE id = ? AND user_id = ?').get(applicationId, userId) as any;
+  if (!existing) {
+    throw new Error('Application not found or unauthorized.');
+  }
+  const now = new Date().toISOString();
+  const confirmedAt = status === 'Applied' ? now : existing.applied_confirmed_at;
+  const appliedAt = status === 'Applied' ? (existing.applied_at || now.split('T')[0]) : existing.applied_at;
+
+  await db.prepare(`
+    UPDATE job_applications
+    SET status = ?, applied_at = ?, applied_confirmed_at = ?, resume_id = COALESCE(?, resume_id), updated_at = ?
+    WHERE id = ? AND user_id = ?
+  `).run(status, appliedAt, confirmedAt, resumeId || null, now, applicationId, userId);
+
+  return await db.prepare('SELECT * FROM job_applications WHERE id = ? AND user_id = ?').get(applicationId, userId);
+}
+
+export function areResumeDatasEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+
+  let parsedA = a;
+  let parsedB = b;
+
+  if (typeof a === 'string') {
+    try { parsedA = JSON.parse(a); } catch { parsedA = a; }
+  }
+  if (typeof b === 'string') {
+    try { parsedB = JSON.parse(b); } catch { parsedB = b; }
+  }
+
+  if (typeof parsedA !== 'object' || typeof parsedB !== 'object') {
+    return parsedA === parsedB;
+  }
+
+  function canonicalize(obj: any): any {
+    if (obj === null || typeof obj !== 'object') {
+      return obj;
+    }
+    if (Array.isArray(obj)) {
+      return obj.map(canonicalize);
+    }
+    const sortedKeys = Object.keys(obj).sort();
+    const result: Record<string, any> = {};
+    for (const key of sortedKeys) {
+      const val = obj[key];
+      if (val !== undefined) {
+        result[key] = canonicalize(val);
+      }
+    }
+    return result;
+  }
+
+  return JSON.stringify(canonicalize(parsedA)) === JSON.stringify(canonicalize(parsedB));
+}
+
+export async function runDatabaseMigrations(dbClient?: DatabaseClient): Promise<{
+  applied: string[];
+  skipped: string[];
+  success: boolean;
+}> {
+  const db = dbClient || getDb();
+  const applied: string[] = [];
+  const skipped: string[] = [];
+
+  // 1. Ensure resume_versions table
+  const createResumeVersionsSql = `
+    CREATE TABLE IF NOT EXISTS resume_versions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      resume_id TEXT,
+      version_number INTEGER NOT NULL DEFAULT 1,
+      resume_data TEXT NOT NULL,
+      change_summary TEXT,
+      created_at TEXT NOT NULL
+    );
+  `;
+  try {
+    await db.exec(createResumeVersionsSql);
+    applied.push('CREATE TABLE IF NOT EXISTS resume_versions');
+  } catch (err: any) {
+    skipped.push(`resume_versions: ${err?.message}`);
+  }
+
+  // 2. Ensure indexes on resume_versions
+  const indexes = [
+    'CREATE INDEX IF NOT EXISTS idx_resume_ver_user ON resume_versions(user_id);',
+    'CREATE INDEX IF NOT EXISTS idx_resume_ver_res ON resume_versions(resume_id);',
+    'CREATE INDEX IF NOT EXISTS idx_resume_ver_order ON resume_versions(user_id, resume_id, version_number DESC);',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_resume_ver_unique ON resume_versions(user_id, resume_id, version_number);',
+  ];
+  for (const idxSql of indexes) {
+    try {
+      await db.exec(idxSql);
+      applied.push(idxSql.split('ON')[0].trim());
+    } catch (err: any) {
+      skipped.push(`${idxSql}: ${err?.message}`);
+    }
+  }
+
+  // 3. Ensure required columns on job_applications and resumes
+  const columns = [
+    { table: 'job_applications', column: 'resume_id', type: 'TEXT' },
+    { table: 'job_applications', column: 'applied_confirmed_at', type: 'TEXT' },
+    { table: 'job_applications', column: 'description_snippet', type: 'TEXT' },
+    { table: 'job_applications', column: 'salary', type: 'TEXT' },
+    { table: 'resumes', column: 'user_id', type: 'TEXT' },
+    { table: 'resumes', column: 'resume_data', type: 'TEXT' },
+  ];
+
+  for (const col of columns) {
+    const alterSql = `ALTER TABLE ${col.table} ADD COLUMN ${col.column} ${col.type};`;
+    try {
+      await db.exec(alterSql);
+      applied.push(`Added ${col.table}.${col.column}`);
+    } catch {
+      // In SQLite: duplicate column name, in Postgres: already exists
+      skipped.push(`${col.table}.${col.column} already exists`);
+    }
+  }
+
+  return { applied, skipped, success: true };
+}
+
+export async function saveResumeVersion(
+  userId: string,
+  resumeId: string | null,
+  resumeData: any,
+  changeSummary?: string
+) {
+  if (!userId || typeof userId !== 'string') {
+    throw new Error('Unauthorized: Valid user ID is required.');
+  }
+
+  if (!resumeData) {
+    throw new Error('Bad Request: resumeData is required to save a version snapshot.');
+  }
+
+  const db = getDb();
+  const now = new Date().toISOString();
+  let targetResumeId = resumeId;
+
+  if (targetResumeId) {
+    const existingResume = (await db.prepare('SELECT id, user_id, resume_data FROM resumes WHERE id = ?').get(targetResumeId)) as any;
+    if (!existingResume) {
+      throw new Error('Resume not found.');
+    }
+    if (existingResume.user_id !== userId) {
+      throw new Error('Forbidden: You do not own this resume.');
+    }
+  } else {
+    // If no resumeId provided, find user's latest resume
+    const existing = (await db.prepare('SELECT id, user_id, resume_data FROM resumes WHERE user_id = ? ORDER BY uploaded_at DESC LIMIT 1').get(userId)) as any;
+    if (existing) {
+      targetResumeId = existing.id;
+    } else {
+      // Create new canonical resume record for this user
+      targetResumeId = `res_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const name = resumeData?.personalInfo?.fullName ? `${resumeData.personalInfo.fullName} Resume` : 'My Resume';
+      await db.prepare(`
+        INSERT INTO resumes (id, user_id, filename, file_type, uploaded_at, parsed_successfully, resume_data, created_at)
+        VALUES (?, ?, ?, 'builder', ?, 1, ?, ?)
+      `).run(targetResumeId, userId, name, now, JSON.stringify(resumeData), now);
+    }
+  }
+
+  // Check for duplicate snapshot: if the data is identical to the latest snapshot for this resume
+  const latestVersion = (await db.prepare(`
+    SELECT * FROM resume_versions
+    WHERE user_id = ? AND resume_id = ?
+    ORDER BY version_number DESC
+    LIMIT 1
+  `).get(userId, targetResumeId)) as any;
+
+  if (latestVersion && areResumeDatasEqual(latestVersion.resume_data, resumeData)) {
+    return {
+      id: latestVersion.id,
+      userId: latestVersion.user_id,
+      resumeId: latestVersion.resume_id,
+      versionNumber: latestVersion.version_number,
+      changeSummary: latestVersion.change_summary,
+      createdAt: latestVersion.created_at,
+      isDuplicate: true,
+    };
+  }
+
+  const dataString = typeof resumeData === 'string' ? resumeData : JSON.stringify(resumeData);
+  const summary = changeSummary?.trim() || '';
+
+  // Concurrency retry loop: if two concurrent saves race on MAX(version_number), retry up to 3 times
+  let attempts = 0;
+  let savedVersion: any = null;
+
+  while (attempts < 3) {
+    attempts++;
+    try {
+      const verRow = (await db.prepare('SELECT MAX(version_number) as max_v FROM resume_versions WHERE user_id = ? AND resume_id = ?').get(userId, targetResumeId)) as any;
+      const nextVer = (verRow?.max_v || 0) + 1;
+      const versionId = `ver_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const finalSummary = summary || `Version ${nextVer}`;
+      const createdAt = new Date().toISOString();
+
+      await db.prepare(`
+        INSERT INTO resume_versions (id, user_id, resume_id, version_number, resume_data, change_summary, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(versionId, userId, targetResumeId, nextVer, dataString, finalSummary, createdAt);
+
+      try {
+        await db.prepare('UPDATE resumes SET resume_data = ? WHERE id = ? AND user_id = ?').run(dataString, targetResumeId, userId);
+      } catch {}
+
+      savedVersion = {
+        id: versionId,
+        userId,
+        resumeId: targetResumeId,
+        versionNumber: nextVer,
+        changeSummary: finalSummary,
+        createdAt,
+        isDuplicate: false,
+      };
+      break;
+    } catch (err: any) {
+      if (/UNIQUE|duplicate|conflict/i.test(err?.message || '') && attempts < 3) {
+        // Concurrency conflict: retry with fresh MAX(version_number)
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  if (!savedVersion) {
+    throw new Error('Failed to save resume version snapshot due to concurrency conflict.');
+  }
+
+  return savedVersion;
+}
+
+export async function getResumeVersions(userId: string, resumeId?: string) {
+  if (!userId || typeof userId !== 'string') {
+    throw new Error('Unauthorized: Valid user ID is required.');
+  }
+
+  const db = getDb();
+
+  if (resumeId) {
+    const resume = (await db.prepare('SELECT id, user_id FROM resumes WHERE id = ?').get(resumeId)) as any;
+    if (!resume) {
+      throw new Error('Resume not found.');
+    }
+    if (resume.user_id !== userId) {
+      throw new Error('Forbidden: You do not own this resume.');
+    }
+
+    const rows = (await db.prepare(`
+      SELECT id, user_id, resume_id, version_number, change_summary, created_at
+      FROM resume_versions
+      WHERE user_id = ? AND resume_id = ?
+      ORDER BY version_number DESC
+    `).all(userId, resumeId)) as any[];
+
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      resumeId: r.resume_id,
+      versionNumber: r.version_number,
+      changeSummary: r.change_summary,
+      createdAt: r.created_at,
+    }));
+  }
+
+  const rows = (await db.prepare(`
+    SELECT id, user_id, resume_id, version_number, change_summary, created_at
+    FROM resume_versions
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+  `).all(userId)) as any[];
+
+  return rows.map((r) => ({
+    id: r.id,
+    userId: r.user_id,
+    resumeId: r.resume_id,
+    versionNumber: r.version_number,
+    changeSummary: r.change_summary,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function getResumeVersion(userId: string, versionId: string) {
+  if (!userId || typeof userId !== 'string') {
+    throw new Error('Unauthorized: Valid user ID is required.');
+  }
+  if (!versionId || typeof versionId !== 'string') {
+    throw new Error('Bad Request: Valid version ID is required.');
+  }
+
+  const db = getDb();
+  const row = (await db.prepare(`
+    SELECT *
+    FROM resume_versions
+    WHERE id = ?
+  `).get(versionId)) as any;
+
+  if (!row) {
+    throw new Error('Resume version not found.');
+  }
+
+  if (row.user_id !== userId) {
+    throw new Error('Forbidden: You do not have permission to view this version.');
+  }
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    resumeId: row.resume_id,
+    versionNumber: row.version_number,
+    changeSummary: row.change_summary,
+    createdAt: row.created_at,
+    resumeData: typeof row.resume_data === 'string' ? JSON.parse(row.resume_data) : row.resume_data,
+  };
+}
+
+export async function restoreResumeVersion(userId: string, versionId: string) {
+  if (!userId || typeof userId !== 'string') {
+    throw new Error('Unauthorized: Valid user ID is required.');
+  }
+  if (!versionId || typeof versionId !== 'string') {
+    throw new Error('Bad Request: Valid version ID is required.');
+  }
+
+  const db = getDb();
+
+  // 1. Fetch target version and verify ownership
+  const targetVersion = (await db.prepare(`
+    SELECT * FROM resume_versions WHERE id = ?
+  `).get(versionId)) as any;
+
+  if (!targetVersion) {
+    throw new Error('Resume version not found.');
+  }
+
+  if (targetVersion.user_id !== userId) {
+    throw new Error('Forbidden: You do not have permission to restore this version.');
+  }
+
+  const targetResumeId = targetVersion.resume_id;
+
+  // 2. Fetch target resume and verify ownership
+  const targetResume = (await db.prepare(`
+    SELECT * FROM resumes WHERE id = ?
+  `).get(targetResumeId)) as any;
+
+  if (!targetResume) {
+    throw new Error('Resume associated with this version not found.');
+  }
+
+  if (targetResume.user_id !== userId) {
+    throw new Error('Forbidden: You do not own this resume.');
+  }
+
+  // 3. Check if active resume data has un-snapshotted changes compared to latest version
+  const latestVersion = (await db.prepare(`
+    SELECT * FROM resume_versions
+    WHERE user_id = ? AND resume_id = ?
+    ORDER BY version_number DESC
+    LIMIT 1
+  `).get(userId, targetResumeId)) as any;
+
+  const currentResumeData = targetResume.resume_data;
+  let preRestoreCheckpoint = null;
+
+  if (currentResumeData && (!latestVersion || !areResumeDatasEqual(latestVersion.resume_data, currentResumeData))) {
+    // Save checkpoint of current unsaved edits before restoring
+    preRestoreCheckpoint = await saveResumeVersion(
+      userId,
+      targetResumeId,
+      typeof currentResumeData === 'string' ? JSON.parse(currentResumeData) : currentResumeData,
+      `Checkpoint before restoring Version ${targetVersion.version_number}`
+    );
+  }
+
+  // 4. Create a new version snapshot representing the restored state
+  const targetData = typeof targetVersion.resume_data === 'string'
+    ? JSON.parse(targetVersion.resume_data)
+    : targetVersion.resume_data;
+
+  // We explicitly save a new version snapshot for the restoration
+  const verRow = (await db.prepare('SELECT MAX(version_number) as max_v FROM resume_versions WHERE user_id = ? AND resume_id = ?').get(userId, targetResumeId)) as any;
+  const nextVer = (verRow?.max_v || 0) + 1;
+  const newVersionId = `ver_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const dataString = typeof targetVersion.resume_data === 'string' ? targetVersion.resume_data : JSON.stringify(targetVersion.resume_data);
+  const now = new Date().toISOString();
+  const summary = `Restored from Version ${targetVersion.version_number}`;
+
+  await db.prepare(`
+    INSERT INTO resume_versions (id, user_id, resume_id, version_number, resume_data, change_summary, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(newVersionId, userId, targetResumeId, nextVer, dataString, summary, now);
+
+  // Update active resume data in resumes table
+  await db.prepare('UPDATE resumes SET resume_data = ? WHERE id = ? AND user_id = ?').run(dataString, targetResumeId, userId);
+
+  const restoredSnapshot = {
+    id: newVersionId,
+    userId,
+    resumeId: targetResumeId,
+    versionNumber: nextVer,
+    changeSummary: summary,
+    createdAt: now,
+    isDuplicate: false,
+  };
+
+  return {
+    success: true,
+    message: `Restored Version ${targetVersion.version_number} successfully. Created Version ${nextVer}.`,
+    resumeId: targetResumeId,
+    restoredFromVersionNumber: targetVersion.version_number,
+    newVersion: restoredSnapshot,
+    preRestoreCheckpoint,
+    resumeData: targetData,
+  };
+}
+
+export async function getUserResume(userId: string, resumeId: string) {
+  const db = getDb();
+  const row = (await db.prepare(`
+    SELECT *
+    FROM resumes
+    WHERE id = ? AND user_id = ?
+  `).get(resumeId, userId)) as any;
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    ...row,
+    resumeData: row.resume_data ? (typeof row.resume_data === 'string' ? JSON.parse(row.resume_data) : row.resume_data) : null,
+  };
+}
+
+export async function getUserActiveResume(userId: string) {
+  const db = getDb();
+  const row = (await db.prepare(`
+    SELECT *
+    FROM resumes
+    WHERE user_id = ?
+    ORDER BY uploaded_at DESC, created_at DESC
+    LIMIT 1
+  `).get(userId)) as any;
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    ...row,
+    parsedSuccessfully: Boolean(row.parsed_successfully),
+    resumeData: row.resume_data ? (typeof row.resume_data === 'string' ? JSON.parse(row.resume_data) : row.resume_data) : null,
+  };
+}
+
+export async function saveUserResume(
+  userId: string,
+  data: {
+    resumeId?: string | null;
+    resumeData: any;
+    filename?: string | null;
+    fileType?: string | null;
+    clientLastUpdated?: string | null;
+    force?: boolean;
+  }
+) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  let targetResumeId: string | null = null;
+  const dataString = typeof data.resumeData === 'string' ? data.resumeData : JSON.stringify(data.resumeData);
+  const parsedIncoming = typeof data.resumeData === 'string' ? JSON.parse(data.resumeData) : data.resumeData;
+
+  const suggestedFilename =
+    data.filename ||
+    (parsedIncoming?.personalInfo?.fullName ? `${parsedIncoming.personalInfo.fullName} Resume` : null) ||
+    'My Resume';
+
+  // If a valid existing resumeId is supplied
+  if (data.resumeId && data.resumeId !== 'res_default' && !data.resumeId.startsWith('res_fresher')) {
+    const existing = (await db.prepare('SELECT id, user_id, filename, resume_data, uploaded_at FROM resumes WHERE id = ?').get(data.resumeId)) as any;
+    if (existing) {
+      if (existing.user_id !== userId) {
+        throw new Error('Forbidden: You do not own this resume.');
+      }
+      targetResumeId = existing.id;
+
+      // Concurrency check: prevent stale client edits from overwriting newer server records
+      if (!data.force && data.clientLastUpdated && existing.resume_data) {
+        try {
+          const serverData = typeof existing.resume_data === 'string' ? JSON.parse(existing.resume_data) : existing.resume_data;
+          if (serverData?.lastUpdated) {
+            const serverTime = new Date(serverData.lastUpdated).getTime();
+            const clientTime = new Date(data.clientLastUpdated).getTime();
+            // Allow 3 seconds tolerance for clock differences
+            if (serverTime - clientTime > 3000) {
+              const conflictErr: any = new Error('Conflict: A newer edit of this resume was saved to the server.');
+              conflictErr.code = 'CONFLICT';
+              conflictErr.serverResume = { ...existing, resumeData: serverData };
+              throw conflictErr;
+            }
+          }
+        } catch (e: any) {
+          if (e.code === 'CONFLICT') throw e;
+        }
+      }
+
+      await db.prepare(`
+        UPDATE resumes
+        SET resume_data = ?,
+            filename = COALESCE(?, filename),
+            uploaded_at = ?
+        WHERE id = ? AND user_id = ?
+      `).run(dataString, suggestedFilename, now, targetResumeId, userId);
+    }
+  }
+
+  // If targetResumeId is still null, look for user's most recent resume to update
+  if (!targetResumeId) {
+    const latestExisting = (await db.prepare(`
+      SELECT id, user_id, resume_data FROM resumes
+      WHERE user_id = ?
+      ORDER BY uploaded_at DESC, created_at DESC
+      LIMIT 1
+    `).get(userId)) as any;
+
+    if (latestExisting) {
+      targetResumeId = latestExisting.id;
+      await db.prepare(`
+        UPDATE resumes
+        SET resume_data = ?,
+            filename = COALESCE(?, filename),
+            uploaded_at = ?
+        WHERE id = ? AND user_id = ?
+      `).run(dataString, suggestedFilename, now, targetResumeId, userId);
+    } else {
+      // Create new canonical resume record for this user
+      targetResumeId = (data.resumeId && data.resumeId !== 'res_default' && !data.resumeId.startsWith('res_fresher'))
+        ? data.resumeId
+        : `res_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+      await db.prepare(`
+        INSERT INTO resumes (id, user_id, filename, file_type, uploaded_at, parsed_successfully, resume_data, created_at)
+        VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+      `).run(
+        targetResumeId,
+        userId,
+        suggestedFilename,
+        data.fileType || 'builder',
+        now,
+        dataString,
+        now
+      );
+    }
+  }
+
+  const updatedRow = (await db.prepare('SELECT * FROM resumes WHERE id = ? AND user_id = ?').get(targetResumeId, userId)) as any;
+  return {
+    ...updatedRow,
+    resumeData: parsedIncoming,
+  };
+}
+
+export async function recordUserImprovement(
+  userId: string,
+  data: {
+    resumeId?: string | null;
+    category?: string | null;
+    title: string;
+    beforeText?: string | null;
+    afterText: string;
+  }
+) {
+  const db = getDb();
+  const id = `imp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const now = new Date().toISOString();
+
+  if (data.resumeId) {
+    const resume = (await db.prepare('SELECT id, user_id FROM resumes WHERE id = ?').get(data.resumeId)) as any;
+    if (resume && resume.user_id !== userId) {
+      throw new Error('Forbidden: You do not own this resume.');
+    }
+  }
+
+  await db.prepare(`
+    INSERT INTO resume_improvements (id, user_id, resume_id, category, title, before_text, after_text, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    userId,
+    data.resumeId || null,
+    data.category || 'ATS Optimization',
+    data.title,
+    data.beforeText || 'Previous phrasing',
+    data.afterText,
+    now
+  );
+
+  return {
+    id,
+    userId,
+    resumeId: data.resumeId || null,
+    category: data.category || 'ATS Optimization',
+    title: data.title,
+    beforeText: data.beforeText || 'Previous phrasing',
+    afterText: data.afterText,
+    createdAt: now,
+  };
 }
 
 export async function deleteJobApplication(userId: string, applicationId: string): Promise<boolean> {

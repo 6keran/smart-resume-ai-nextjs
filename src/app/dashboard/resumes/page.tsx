@@ -89,9 +89,16 @@ export default async function UserResumesPage() {
 
                 <div className="mt-6 pt-4 border-t border-[var(--border-color)]">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs text-[var(--text-secondary)]">
-                      {r.analyses_count} {r.analyses_count === 1 ? 'Scan' : 'Scans'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-[var(--text-secondary)]">
+                        {r.analyses_count} {r.analyses_count === 1 ? 'Scan' : 'Scans'}
+                      </span>
+                      {r.versionsCount > 0 && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20">
+                          {r.versionsCount} {r.versionsCount === 1 ? 'Version' : 'Versions'}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-medium text-[var(--text-secondary)]">ATS:</span>
                       <span
@@ -110,19 +117,25 @@ export default async function UserResumesPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <Link
-                      href="/dashboard/analyses"
-                      className="flex-1 py-2 px-3 rounded-xl bg-[var(--bg-card)] hover:bg-[var(--bg-primary)] border border-[var(--border-color)] hover:border-[var(--accent)] text-xs font-semibold text-center text-[var(--text-primary)] transition-all"
+                      href={`/builder?resumeId=${r.id}`}
+                      className="py-2 px-2.5 rounded-xl bg-[var(--accent)] text-white text-xs font-semibold hover:opacity-90 transition-all text-center flex items-center justify-center gap-1 shadow-sm"
                     >
-                      View Analyses
+                      <span>Builder</span>
                     </Link>
                     <Link
                       href="/analyzer"
-                      className="py-2 px-3 rounded-xl bg-[var(--accent)] text-white text-xs font-semibold hover:opacity-90 transition-all text-center"
+                      className="py-2 px-2.5 rounded-xl bg-[var(--bg-card)] hover:bg-[var(--bg-primary)] border border-[var(--border-color)] hover:border-[var(--accent)] text-xs font-semibold text-center text-[var(--text-primary)] transition-all flex items-center justify-center"
                       title="Run new scan on this resume"
                     >
-                      Re-scan
+                      <span>Re-scan</span>
+                    </Link>
+                    <Link
+                      href="/dashboard/analyses"
+                      className="py-2 px-2.5 rounded-xl bg-[var(--bg-card)] hover:bg-[var(--bg-primary)] border border-[var(--border-color)] text-xs font-semibold text-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center"
+                    >
+                      <span>Scans</span>
                     </Link>
                   </div>
                 </div>

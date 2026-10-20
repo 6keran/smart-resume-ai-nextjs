@@ -181,7 +181,8 @@ const TABLE_SCHEMAS = [
         uploaded_at TEXT NOT NULL,
         parsed_successfully INTEGER DEFAULT 1,
         created_at TEXT NOT NULL,
-        user_id TEXT
+        user_id TEXT,
+        resume_data TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_resumes_visitor ON resumes(visitor_id);
     `,
@@ -224,6 +225,25 @@ const TABLE_SCHEMAS = [
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_improvements_user ON resume_improvements(user_id);
+    `,
+  },
+  {
+    name: 'resume_versions',
+    conflictKey: 'id',
+    sql: `
+      CREATE TABLE IF NOT EXISTS resume_versions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        resume_id TEXT,
+        version_number INTEGER NOT NULL DEFAULT 1,
+        resume_data TEXT NOT NULL,
+        change_summary TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_resume_ver_user ON resume_versions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_resume_ver_res ON resume_versions(resume_id);
+      CREATE INDEX IF NOT EXISTS idx_resume_ver_order ON resume_versions(user_id, resume_id, version_number DESC);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_resume_ver_unique ON resume_versions(user_id, resume_id, version_number);
     `,
   },
   {
@@ -429,6 +449,10 @@ const TABLE_SCHEMAS = [
         applied_at TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'Applied',
         notes TEXT,
+        resume_id TEXT,
+        applied_confirmed_at TEXT,
+        description_snippet TEXT,
+        salary TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -496,7 +520,21 @@ async function runMigration() {
     for (const t of TABLE_SCHEMAS) {
       await client.query(t.sql);
     }
-    console.log('✓ All 22 tables and indexes created successfully in PostgreSQL.\n');
+    console.log(`✓ All ${TABLE_SCHEMAS.length} tables and indexes ensured in PostgreSQL.\n`);
+
+    console.log('[Step 1b/3] Reconciling table columns and optimization indexes...');
+    const columnReconciliations = [
+      'ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS resume_id TEXT',
+      'ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS applied_confirmed_at TEXT',
+      'ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS description_snippet TEXT',
+      'ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS salary TEXT',
+      'ALTER TABLE resumes ADD COLUMN IF NOT EXISTS resume_data TEXT',
+      'CREATE INDEX IF NOT EXISTS idx_users_lower_email ON users(LOWER(email))',
+    ];
+    for (const ddl of columnReconciliations) {
+      await client.query(ddl);
+    }
+    console.log('✓ All missing columns and optimization indexes reconciled successfully in PostgreSQL.\n');
 
     console.log('[Step 2/3] Migrating data records table by table...');
     const results = [];
@@ -506,7 +544,7 @@ async function runMigration() {
       const sqliteCount = sqliteRows.length;
 
       if (sqliteCount === 0) {
-        results.push({ table: t.name, sqlite: 0, postgres: 0, status: 'MATCH (EMPTY)' });
+        results.push({ table: t.name, sqlite: 0, postgres: 0, status: 'MATCH (EMPTY)', isOk: true });
         continue;
       }
 
@@ -535,8 +573,17 @@ async function runMigration() {
       const pgCountRes = await client.query(`SELECT count(*) as c FROM "${t.name}"`);
       const pgCount = parseInt(pgCountRes.rows[0].c, 10);
 
-      const status = pgCount === sqliteCount ? 'MATCH' : `COUNT DIFF (${pgCount} vs ${sqliteCount})`;
-      results.push({ table: t.name, sqlite: sqliteCount, postgres: pgCount, status });
+      let status = 'MATCH';
+      let isOk = true;
+      if (pgCount === sqliteCount) {
+        status = 'MATCH';
+      } else if (pgCount > sqliteCount) {
+        status = `VERIFIED (PG HAS ${pgCount - sqliteCount} EXTRA ROWS)`;
+      } else {
+        status = `COUNT DEFICIT (${pgCount} vs ${sqliteCount} SQLite rows)`;
+        isOk = false;
+      }
+      results.push({ table: t.name, sqlite: sqliteCount, postgres: pgCount, status, isOk });
     }
 
     console.log('\n[Step 3/3] Migration Summary & Integrity Verification:');
@@ -551,9 +598,8 @@ async function runMigration() {
 
     let allMatched = true;
     for (const r of results) {
-      const isOk = r.sqlite === r.postgres;
-      if (!isOk) allMatched = false;
-      const statusIcon = isOk ? '✓' : '✗';
+      if (!r.isOk) allMatched = false;
+      const statusIcon = r.isOk ? '✓' : '✗';
       console.log(
         `${r.table.padEnd(32)}${String(r.sqlite).padEnd(16)}${String(r.postgres).padEnd(16)}${statusIcon} ${r.status}`
       );

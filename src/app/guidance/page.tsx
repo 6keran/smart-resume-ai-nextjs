@@ -63,15 +63,11 @@ export default function CareerGuidancePage() {
       {/* Page Header */}
       <div className="border-b border-[var(--border-color)] pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 mb-2">
-            <Compass className="w-3.5 h-3.5" />
-            Fresher & Campus Career Guidance
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] tracking-tight">
-            Target Company & Role Roadmap
+          <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] tracking-tight">
+            Company & Role Roadmaps
           </h1>
           <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1 max-w-3xl">
-            Evaluate your skill readiness against hiring patterns at top tech firms (TCS, Infosys, Google, Amazon, Microsoft, Wipro). Discover required skills, round-by-round interview structures, and take verified assessments.
+            Review interview stages and recommended skills across major tech companies, and check your profile alignment.
           </p>
         </div>
 
@@ -80,8 +76,8 @@ export default function CareerGuidancePage() {
             href="/skills"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs font-semibold shadow-sm transition-all"
           >
-            <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Verify Skills</span>
+            <BadgeCheck className="w-3.5 h-3.5 text-[var(--accent)]" />
+            <span>Skill Assessments</span>
           </Link>
           <Link
             href="/builder"

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { matchResumeToJob } from '@/lib/gemini';
+import { validateResumeDocument } from '@/lib/resumeValidator';
 import { recordJobMatchEvent } from '@/lib/db';
 import { getOrCreateVisitorId } from '@/lib/visitor';
 import { getUserFromRequest } from '@/lib/userSession';
@@ -7,10 +8,29 @@ import { getUserFromRequest } from '@/lib/userSession';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { resumeText, jobTitle, company, jobDescription } = body;
+    const { resumeText, jobTitle, company, jobDescription, allowUncertainOverride } = body;
+
+    if (!resumeText || typeof resumeText !== 'string' || resumeText.trim().length === 0) {
+      return NextResponse.json(
+        { message: 'Resume content is required for job matching.' },
+        { status: 400 }
+      );
+    }
+
+    // Enforce document validation to prevent non-resume documents from bypassing validation
+    const validation = validateResumeDocument(resumeText, { allowUncertainOverride: Boolean(allowUncertainOverride) });
+    if (!validation.isValid) {
+      return NextResponse.json(
+        {
+          message: validation.message,
+          validation,
+        },
+        { status: 422 }
+      );
+    }
 
     const result = await matchResumeToJob(
-      resumeText || '',
+      resumeText,
       jobTitle || 'Target Role',
       company || 'Target Company',
       jobDescription || ''

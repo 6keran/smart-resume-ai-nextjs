@@ -111,15 +111,11 @@ Requirements:
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border-color)] pb-6">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 mb-2">
-            <Target className="w-3.5 h-3.5" />
-            Candidate-To-Job Alignment
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] tracking-tight">
-            Job Match Engine
+          <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] tracking-tight">
+            Job Match Analysis
           </h1>
           <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1">
-            Compare your active resume against real job descriptions to identify skill alignment, partial matches, and critical keyword gaps.
+            Compare your active resume against job descriptions to identify matching qualifications and keyword gaps.
           </p>
         </div>
 

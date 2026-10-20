@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Briefcase,
   Search,
@@ -32,14 +32,44 @@ import {
   BookOpen,
   FolderGit2,
   Calendar,
+  Bookmark,
+  FileEdit,
+  Send,
+  Loader2,
 } from 'lucide-react';
 import { useResume } from '@/context/ResumeContext';
 import { Job, JobSearchResponse, WorkplaceType, EmploymentType } from '@/types/jobs';
 import { GlassCard } from '@/components/ui/GlassCard';
 
 function JobSearchContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const { resumeData, analysisResult } = useResume();
+  const { resumeData, analysisResult, updateTargetJob } = useResume();
+
+  // Application Tracking & Return Prompt State
+  const [applyingJobId, setApplyingJobId] = useState<string | null>(null);
+  const [pendingApplication, setPendingApplication] = useState<{
+    id: string | null;
+    jobTitle: string;
+    company: string;
+    source: string;
+    jobUrl: string;
+  } | null>(null);
+  const [showConfirmPrompt, setShowConfirmPrompt] = useState(false);
+  const [confirmStatusMessage, setConfirmStatusMessage] = useState<string | null>(null);
+  const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set());
+  const [savingJobId, setSavingJobId] = useState<string | null>(null);
+
+  // Tab return listener for automatic prompt trigger
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      if (pendingApplication && !showConfirmPrompt) {
+        setShowConfirmPrompt(true);
+      }
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    return () => window.removeEventListener('focus', handleWindowFocus);
+  }, [pendingApplication, showConfirmPrompt]);
 
   // Primary search inputs
   const initialQuery = searchParams.get('q') || searchParams.get('keywords') || '';
@@ -214,41 +244,275 @@ function JobSearchContent() {
     );
   };
 
+  // Application Workflow Handlers
+  const handleSaveJob = async (job: Job) => {
+    try {
+      setSavingJobId(job.id);
+      const res = await fetch('/api/user/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId: job.id,
+          jobTitle: job.title,
+          company: job.company,
+          location: job.location,
+          source: job.source,
+          jobUrl: job.applyUrl || job.sourceUrl,
+          status: 'Saved',
+          descriptionSnippet: job.snippet,
+          salary: job.salaryDisplay || job.salary,
+        }),
+      });
+      if (res.ok) {
+        setSavedJobIds((prev) => new Set([...prev, job.id]));
+        setConfirmStatusMessage(`Saved "${job.title} at ${job.company}" to your Saved Jobs.`);
+        setTimeout(() => setConfirmStatusMessage(null), 4000);
+      }
+    } catch (err) {
+      console.error('Error saving job:', err);
+    } finally {
+      setSavingJobId(null);
+    }
+  };
+
+  const handlePrepareResume = (job: Job) => {
+    updateTargetJob({
+      title: job.title,
+      company: job.company,
+      description: job.description || job.snippet,
+    });
+    router.push('/builder?from=jobs');
+  };
+
+  const handleApplyClick = async (job: Job) => {
+    const rawUrl = job.applyUrl || job.sourceUrl;
+    if (!rawUrl) {
+      alert('This listing does not provide a valid application URL.');
+      return;
+    }
+
+    try {
+      setApplyingJobId(job.id);
+      const res = await fetch('/api/user/applications/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId: job.id,
+          jobTitle: job.title,
+          company: job.company,
+          location: job.location,
+          source: job.source,
+          jobUrl: rawUrl,
+          descriptionSnippet: job.snippet,
+          salary: job.salaryDisplay || job.salary,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to initialize application');
+      }
+
+      const externalUrl = data.externalUrl || rawUrl;
+      // Open original application page in new tab safely
+      window.open(externalUrl, '_blank', 'noopener,noreferrer');
+
+      // Set pending state and open return prompt
+      setPendingApplication({
+        id: data.applicationId,
+        jobTitle: job.title,
+        company: job.company,
+        source: job.source,
+        jobUrl: externalUrl,
+      });
+      setShowConfirmPrompt(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Could not open application: ${msg}`);
+    } finally {
+      setApplyingJobId(null);
+    }
+  };
+
+  const handleConfirmApplication = async (status: 'Applied' | 'Ready to apply' | 'Saved') => {
+    if (!pendingApplication) return;
+
+    if (pendingApplication.id) {
+      try {
+        await fetch('/api/user/applications/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            applicationId: pendingApplication.id,
+            status,
+          }),
+        });
+      } catch (err) {
+        console.error('Error confirming application status:', err);
+      }
+    }
+
+    if (status === 'Applied') {
+      setConfirmStatusMessage(
+        `Application confirmed! "${pendingApplication.jobTitle}" is now tracked under Applied Jobs.`
+      );
+    } else if (status === 'Saved') {
+      setConfirmStatusMessage(
+        `"${pendingApplication.jobTitle}" has been saved to your Saved Jobs list.`
+      );
+    } else {
+      setConfirmStatusMessage(
+        `"${pendingApplication.jobTitle}" kept as Ready to apply.`
+      );
+    }
+
+    setShowConfirmPrompt(false);
+    setPendingApplication(null);
+    setTimeout(() => setConfirmStatusMessage(null), 5000);
+  };
+
   const jobs = searchResponse?.jobs || [];
   const totalJobs = searchResponse?.totalJobs || 0;
   const activeSources = searchResponse?.activeSources || [];
   const unavailableSources = searchResponse?.unavailableSources || [];
 
   return (
-    <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8 text-left">
+    <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8 text-left relative">
+      {/* Toast Notification */}
+      {confirmStatusMessage && (
+        <div className="fixed top-20 right-6 z-50 p-4 rounded-xl bg-slate-900 text-white shadow-2xl border border-slate-700 flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-200">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span className="text-xs font-semibold">{confirmStatusMessage}</span>
+          <button
+            onClick={() => setConfirmStatusMessage(null)}
+            className="p-1 rounded text-slate-400 hover:text-white"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Persistent Pending Application Banner */}
+      {pendingApplication && (
+        <div className="p-4 rounded-2xl bg-blue-600/10 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <Send className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <span className="font-bold text-slate-900 dark:text-white block">
+                Application in Progress
+              </span>
+              <span className="text-slate-600 dark:text-slate-300">
+                You opened the application for <strong>{pendingApplication.jobTitle}</strong> at{' '}
+                <strong>{pendingApplication.company}</strong> on {pendingApplication.source}.
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => handleConfirmApplication('Applied')}
+              className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm"
+            >
+              Yes, I applied
+            </button>
+            <button
+              onClick={() => handleConfirmApplication('Ready to apply')}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium transition-all"
+            >
+              Not yet
+            </button>
+            <button
+              onClick={() => handleConfirmApplication('Saved')}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium transition-all"
+            >
+              Save for later
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Return Confirmation Modal */}
+      {showConfirmPrompt && pendingApplication && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                  <Send className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Did you apply for this job?
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {pendingApplication.jobTitle} @ {pendingApplication.company}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowConfirmPrompt(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              We opened the application page on <strong>{pendingApplication.source}</strong> in a new tab.
+              Confirming your submission helps track your interview timeline and status accurately.
+            </p>
+
+            <div className="pt-2 flex flex-col gap-2">
+              <button
+                onClick={() => handleConfirmApplication('Applied')}
+                className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Yes, I applied</span>
+              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => handleConfirmApplication('Ready to apply')}
+                  className="py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium transition-all cursor-pointer"
+                >
+                  Not yet
+                </button>
+                <button
+                  onClick={() => handleConfirmApplication('Saved')}
+                  className="py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium transition-all cursor-pointer"
+                >
+                  Save for later
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Top Section Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border-color)] pb-6">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 mb-2">
-            <Compass className="w-3.5 h-3.5" />
-            Live Discovery & Real Job Postings
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] tracking-tight">
-            Find your next opportunity
+          <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] tracking-tight">
+            Job Search
           </h1>
           <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1">
-            Discover real-time listings across verified platforms with transparent resume matching.
+            Search active job openings and compare requirements against your resume skills.
           </p>
         </div>
 
         {/* Resume-Aware Status Indicator */}
         {hasCandidateResume ? (
-          <div className="flex items-center gap-3 p-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 shadow-sm">
-            <Sparkles className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] shadow-sm">
+            <Sparkles className="w-5 h-5 text-[var(--accent)] shrink-0" />
             <div className="text-xs">
-              <span className="font-bold text-[var(--text-primary)] block">
-                Searching based on your resume
+              <span className="font-semibold text-[var(--text-primary)] block">
+                Detected Resume Skills
               </span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {candidateSkills.slice(0, 4).map((sk) => (
                   <span
                     key={sk}
-                    className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
+                    className="px-2 py-0.5 rounded text-[10px] font-medium bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border-color)]"
                   >
                     {sk}
                   </span>
@@ -292,31 +556,31 @@ function JobSearchContent() {
         >
           {/* Job title / Keywords */}
           <div className="relative md:col-span-5">
-            <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-[var(--text-secondary)]" />
+            <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-[var(--text-secondary)] pointer-events-none" />
             <input
               type="text"
               value={keywords}
               onChange={(e) => setKeywords(e.target.value)}
               placeholder="Job title / keywords (e.g. Python Developer, React, Data Analyst)..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[var(--border-color)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs sm:text-sm focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-all"
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[var(--border-color)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs sm:text-sm focus:outline-none focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]/20 transition-all duration-150"
             />
           </div>
 
           {/* Location */}
           <div className="relative md:col-span-4">
-            <MapPin className="w-4 h-4 absolute left-3.5 top-3.5 text-[var(--text-secondary)]" />
+            <MapPin className="w-4 h-4 absolute left-3.5 top-3.5 text-[var(--text-secondary)] pointer-events-none" />
             <input
               type="text"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="Location (e.g. Bengaluru, India, Hyderabad, Mumbai, Remote)..."
-              className="w-full pl-10 pr-24 py-2.5 rounded-lg border border-[var(--border-color)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs sm:text-sm focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-all"
+              className="w-full pl-10 pr-24 py-2.5 rounded-lg border border-[var(--border-color)] bg-[var(--input-bg)] text-[var(--text-primary)] text-xs sm:text-sm focus:outline-none focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]/20 transition-all duration-150"
             />
             <button
               type="button"
               onClick={handleUseMyLocation}
               title="Use my location"
-              className="absolute right-2 top-2 px-2 py-1 rounded-md hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors text-xs flex items-center gap-1 font-medium cursor-pointer"
+              className="absolute right-2 top-2 px-2 py-1 rounded-md hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--accent)] active:scale-95 transition-all duration-150 text-xs flex items-center gap-1 font-medium cursor-pointer"
             >
               <LocateFixed className={`w-3.5 h-3.5 ${geoLocating ? 'animate-spin text-[var(--accent)]' : ''}`} />
               <span className="text-[10px] hidden sm:inline">Use my location</span>
@@ -328,7 +592,7 @@ function JobSearchContent() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full inline-flex items-center justify-center gap-2 h-[44px] px-5 rounded-lg bg-[var(--accent)] text-white text-xs sm:text-sm font-medium hover:bg-[var(--accent-hover)] transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+              className="w-full inline-flex items-center justify-center gap-2 h-[44px] px-5 rounded-lg bg-[var(--accent)] text-white text-xs sm:text-sm font-semibold hover:bg-[var(--accent-hover)] transition-all duration-150 shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               {isLoading ? (
                 <>
@@ -358,7 +622,7 @@ function JobSearchContent() {
             <select
               value={experienceLevel}
               onChange={(e) => setExperienceLevel(e.target.value)}
-              className="p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs font-medium focus:outline-none"
+              className="p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs font-medium focus:outline-none focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]/20 transition-all duration-150"
             >
               <option value="any">Experience: Any</option>
               <option value="Fresher">Fresher</option>
@@ -372,7 +636,7 @@ function JobSearchContent() {
             <select
               value={jobType}
               onChange={(e) => setJobType(e.target.value)}
-              className="p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs font-medium focus:outline-none"
+              className="p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs font-medium focus:outline-none focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]/20 transition-all duration-150"
             >
               <option value="any">Job type: Any</option>
               <option value="Full-time">Full-time</option>
@@ -385,7 +649,7 @@ function JobSearchContent() {
             <select
               value={workMode}
               onChange={(e) => setWorkMode(e.target.value)}
-              className="p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs font-medium focus:outline-none"
+              className="p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs font-medium focus:outline-none focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]/20 transition-all duration-150"
             >
               <option value="any">Work mode: Any</option>
               <option value="On-site">On-site</option>
@@ -397,7 +661,7 @@ function JobSearchContent() {
             <select
               value={postedDays}
               onChange={(e) => setPostedDays(Number(e.target.value))}
-              className="p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs font-medium focus:outline-none"
+              className="p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs font-medium focus:outline-none focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]/20 transition-all duration-150"
             >
               <option value={0}>Posted: Any time</option>
               <option value={1}>Past 24 hours</option>
@@ -411,7 +675,7 @@ function JobSearchContent() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs font-medium focus:outline-none"
+              className="p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs font-medium focus:outline-none focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]/20 transition-all duration-150"
             >
               {hasCandidateResume && <option value="match">Sort: Best Resume Match</option>}
               <option value="relevance">Sort: Relevance</option>
@@ -434,7 +698,7 @@ function JobSearchContent() {
                 onClick={() => performSearch(currentPage, true)}
                 disabled={isLoading}
                 title="Refresh fresh listings from sources"
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-card)] text-[var(--text-primary)] transition-all font-medium text-xs disabled:opacity-50"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-card)] text-[var(--text-primary)] active:scale-95 transition-all duration-150 font-medium text-xs disabled:opacity-50 cursor-pointer"
               >
                 <RotateCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
                 <span className="hidden sm:inline">Refresh</span>
@@ -445,7 +709,7 @@ function JobSearchContent() {
               <button
                 type="button"
                 onClick={() => setViewMode('grid')}
-                className={`p-1 rounded ${viewMode === 'grid' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-secondary)]'}`}
+                className={`p-1 rounded active:scale-95 transition-all duration-150 cursor-pointer ${viewMode === 'grid' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-xs' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
                 title="Grid View"
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
@@ -453,7 +717,7 @@ function JobSearchContent() {
               <button
                 type="button"
                 onClick={() => setViewMode('list')}
-                className={`p-1 rounded ${viewMode === 'list' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-secondary)]'}`}
+                className={`p-1 rounded active:scale-95 transition-all duration-150 cursor-pointer ${viewMode === 'list' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-xs' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
                 title="List View"
               >
                 <List className="w-3.5 h-3.5" />
@@ -735,28 +999,61 @@ function JobSearchContent() {
                   )}
                 </div>
 
-                {/* Card Actions: View Job & Apply */}
-                <div className="pt-4 mt-4 border-t border-[var(--border-color)] flex items-center justify-between gap-2">
+                {/* Card Actions: View Job, Prepare Resume, Save, & Apply */}
+                <div className="pt-4 mt-4 border-t border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedJob(job);
+                        setShowResumeMatchBreakdown(false);
+                      }}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                    >
+                      View
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handlePrepareResume(job)}
+                      title="Prepare & Tailor Resume for this Job"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-secondary)] hover:text-blue-500 transition-colors"
+                    >
+                      <FileEdit className="w-3.5 h-3.5" />
+                      <span>Prepare</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSaveJob(job)}
+                      disabled={savingJobId === job.id || savedJobIds.has(job.id)}
+                      title="Save to Application Tracker"
+                      className={`inline-flex items-center gap-1 text-xs font-medium transition-colors ${
+                        savedJobIds.has(job.id)
+                          ? 'text-emerald-500 font-semibold'
+                          : 'text-[var(--text-secondary)] hover:text-emerald-400'
+                      }`}
+                    >
+                      <Bookmark className="w-3.5 h-3.5" />
+                      <span>{savedJobIds.has(job.id) ? 'Saved' : 'Save'}</span>
+                    </button>
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedJob(job);
-                      setShowResumeMatchBreakdown(false);
-                    }}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                    onClick={() => handleApplyClick(job)}
+                    disabled={applyingJobId === job.id}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                   >
-                    View Job
+                    {applyingJobId === job.id ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <>
+                        <span>Apply</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </>
+                    )}
                   </button>
-
-                  <a
-                    href={job.applyUrl || job.sourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-bold shadow-sm transition-all active:scale-95"
-                  >
-                    <span>Apply on {job.source}</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
                 </div>
               </GlassCard>
             ))}
@@ -996,21 +1293,46 @@ function JobSearchContent() {
               )}
             </div>
 
-            {/* Bottom Actions: Apply button with legitimate source URL */}
+            {/* Bottom Actions: Prepare Resume, Save Job & Apply button */}
             <div className="pt-4 border-t border-[var(--border-color)] flex flex-col sm:flex-row items-center justify-between gap-3">
-              <span className="text-[11px] text-[var(--text-secondary)]">
-                Direct redirect to legitimate job posting
-              </span>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => handleSaveJob(selectedJob)}
+                  disabled={savingJobId === selectedJob.id || savedJobIds.has(selectedJob.id)}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)] text-xs font-semibold transition-all ${
+                    savedJobIds.has(selectedJob.id) ? 'text-emerald-500' : 'text-[var(--text-secondary)]'
+                  }`}
+                >
+                  <Bookmark className="w-3.5 h-3.5" />
+                  <span>{savedJobIds.has(selectedJob.id) ? 'Job Saved' : 'Save Job'}</span>
+                </button>
 
-              <a
-                href={selectedJob.applyUrl || selectedJob.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs sm:text-sm font-bold shadow-lg shadow-[var(--accent)]/25 transition-all active:scale-95"
+                <button
+                  type="button"
+                  onClick={() => handlePrepareResume(selectedJob)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-semibold transition-all"
+                >
+                  <FileEdit className="w-3.5 h-3.5" />
+                  <span>Prepare & Tailor Resume</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleApplyClick(selectedJob)}
+                disabled={applyingJobId === selectedJob.id}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-lg transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
               >
-                <span>Apply on {selectedJob.source}</span>
-                <ExternalLink className="w-4 h-4" />
-              </a>
+                {applyingJobId === selectedJob.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <span>Apply on {selectedJob.source}</span>
+                    <ExternalLink className="w-4 h-4" />
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

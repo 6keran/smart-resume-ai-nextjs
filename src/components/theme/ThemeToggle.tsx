@@ -53,9 +53,9 @@ export function ThemeToggle({ className = '', variant = 'segmented' }: ThemeTogg
           e.stopPropagation();
           setTheme('light');
         }}
-        className={`theme-toggle-btn theme-toggle-light flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-150 cursor-pointer select-none ${
+        className={`theme-toggle-btn theme-toggle-light flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-150 cursor-pointer select-none whitespace-nowrap shrink-0 ${
           !isDark
-            ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm border border-[var(--border-color)]'
+            ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-xs border border-[var(--border-color)]'
             : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
         }`}
         title="Activate Light Mode"
@@ -79,9 +79,9 @@ export function ThemeToggle({ className = '', variant = 'segmented' }: ThemeTogg
           e.stopPropagation();
           setTheme('dark');
         }}
-        className={`theme-toggle-btn theme-toggle-dark flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-150 cursor-pointer select-none ${
+        className={`theme-toggle-btn theme-toggle-dark flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-150 cursor-pointer select-none whitespace-nowrap shrink-0 ${
           isDark
-            ? 'bg-[var(--accent)] text-white shadow-sm'
+            ? 'bg-[var(--accent)] text-white shadow-xs'
             : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
         }`}
         title="Activate Dark Mode"

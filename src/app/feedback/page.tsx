@@ -44,46 +44,45 @@ export default function FeedbackPage() {
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto space-y-8 text-left">
       {/* Header */}
       <div className="border-b border-[var(--border-color)] pb-6">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 mb-2">
-          <MessageSquare className="w-3.5 h-3.5" />
-          Community & Product Feedback
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] tracking-tight">
-          Help Us Build The Future of Career Intelligence
+        <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] tracking-tight">
+          Feedback
         </h1>
         <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1">
-          Your feedback directly guides our model training, ATS parsing rules, and platform experience.
+          Share your feedback, report issues, or suggest improvements for Smart Resume AI.
         </p>
       </div>
 
       {!isSubmitted ? (
-        <GlassCard className="p-8 space-y-6" glow>
+        <GlassCard className="p-8 space-y-6">
           <form onSubmit={handleSubmit} className="space-y-6 text-xs">
             {/* Rating Stars */}
             <div className="space-y-2">
               <label className="block font-semibold text-sm text-[var(--text-primary)]">
                 How would you rate your overall experience with Smart Resume AI?
               </label>
-              <div className="flex items-center gap-2 pt-1">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setRating(star)}
-                    onMouseEnter={() => setHoverRating(star)}
-                    onMouseLeave={() => setHoverRating(null)}
-                    className="p-1 focus:outline-none transition-transform hover:scale-125"
-                  >
-                    <Star
-                      className={`w-7 h-7 transition-colors ${
-                        (hoverRating !== null ? hoverRating >= star : rating >= star)
-                          ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]'
-                          : 'text-slate-600'
-                      }`}
-                    />
-                  </button>
-                ))}
-                <span className="ml-2 font-bold text-sm text-[var(--text-primary)]">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-1">
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRating(star)}
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(null)}
+                      className="p-1 focus:outline-none transition-transform hover:scale-125 cursor-pointer"
+                      aria-label={`Rate ${star} stars`}
+                    >
+                      <Star
+                        className={`w-6 h-6 sm:w-7 sm:h-7 transition-colors ${
+                          (hoverRating !== null ? hoverRating >= star : rating >= star)
+                            ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]'
+                            : 'text-slate-600'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <span className="font-bold text-xs sm:text-sm text-[var(--text-primary)] shrink-0">
                   {rating === 5
                     ? 'Exceptional'
                     : rating === 4

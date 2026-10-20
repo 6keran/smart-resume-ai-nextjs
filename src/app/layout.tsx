@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -7,6 +7,7 @@ import { CareerProvider } from '@/context/CareerContext';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { UserProvider } from '@/components/user/UserContext';
+import { CareerChatbot } from '@/components/chat/CareerChatbot';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -17,6 +18,12 @@ const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
 });
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+};
 
 export const metadata: Metadata = {
   title: 'Smart Resume AI | Turn Your Resume Into Your Next Opportunity',
@@ -32,7 +39,13 @@ export const metadata: Metadata = {
     'Career Intelligence',
   ],
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: 'any' },
+    ],
+    apple: [
+      { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
   },
 };
 
@@ -42,7 +55,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         <script
           id="smart-resume-theme-init"
@@ -63,6 +76,7 @@ export default function RootLayout({
                     <main className="flex-1 w-full">{children}</main>
                   </div>
                 </div>
+                <CareerChatbot />
               </UserProvider>
             </CareerProvider>
           </ResumeProvider>
