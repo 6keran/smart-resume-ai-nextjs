@@ -22,6 +22,11 @@ import {
   MapPin,
   Globe,
   Tag,
+  Trash2,
+  AlertTriangle,
+  X,
+  AlertCircle,
+  ShieldAlert,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/GlassCard';
 
@@ -50,6 +55,26 @@ export default function AdminUserDetailPage() {
   const [data, setData] = useState<UserDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'analyses' | 'assessments' | 'skills' | 'jobs' | 'feedback'>('analyses');
+  const [currentAdmin, setCurrentAdmin] = useState<{ id: string; email: string } | null>(null);
+
+  // Deletion modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const fetchCurrentAdmin = async () => {
+    try {
+      const res = await fetch('/api/admin/auth/me');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.admin) {
+          setCurrentAdmin(json.admin);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   const fetchUserDetail = useCallback(async () => {
     if (!userId) return;
@@ -69,7 +94,39 @@ export default function AdminUserDetailPage() {
 
   useEffect(() => {
     fetchUserDetail();
+    fetchCurrentAdmin();
   }, [fetchUserDetail]);
+
+  const handleDeleteUser = async () => {
+    if (!userId) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+      });
+      const resData = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(resData.message || 'Failed to delete user.');
+      }
+
+      router.push('/admin/users');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setDeleteError(msg);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const isSelf = Boolean(
+    data?.user &&
+      currentAdmin &&
+      (currentAdmin.id === data.user.id ||
+        (data.user.email && currentAdmin.email.toLowerCase() === data.user.email.toLowerCase()))
+  );
 
   if (loading && !data) {
     return (
@@ -150,14 +207,27 @@ export default function AdminUserDetailPage() {
           </div>
         </div>
 
-        <button
-          onClick={fetchUserDetail}
-          disabled={loading}
-          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border-color)] hover:bg-[var(--bg-elevated)] text-xs font-semibold text-[var(--text-primary)] transition-all active:scale-95 shadow-sm"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh Profile
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchUserDetail}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border-color)] hover:bg-[var(--bg-elevated)] text-xs font-semibold text-[var(--text-primary)] transition-all active:scale-95 shadow-sm"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh Profile
+          </button>
+
+          <button
+            onClick={() => {
+              setShowDeleteModal(true);
+              setDeleteError(null);
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white text-xs font-semibold transition-all border border-red-500/20 active:scale-95 shadow-sm"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Remove User</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Overview Strip */}
@@ -559,6 +629,126 @@ export default function AdminUserDetailPage() {
             </div>
           )}
         </GlassCard>
+      )}
+
+      {/* Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] shadow-2xl p-6 space-y-5 text-left">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-[var(--border-color)] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center shrink-0 border border-red-500/20">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[var(--text-primary)]">
+                    Remove User Account
+                  </h3>
+                  <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                    Confirm deletion of candidate profile and associated records.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Error Message */}
+            {deleteError && (
+              <div className="p-3.5 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            {/* Self Deletion Prohibition Notice */}
+            {isSelf ? (
+              <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs flex items-start gap-3">
+                <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Self-Deletion Prohibited</p>
+                  <p className="text-[11px] mt-1 text-amber-200/80 leading-relaxed">
+                    You are currently authenticated as this administrator account. Administrators cannot delete their own account from the Admin Console.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Account Details Box */}
+                <div className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[var(--text-secondary)]">Candidate Name:</span>
+                    <span className="font-bold text-[var(--text-primary)]">{user.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[var(--text-secondary)]">Email Address:</span>
+                    <span className="font-mono text-[var(--text-primary)]">{user.email || 'Not provided'}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[var(--text-secondary)]">User Identifier:</span>
+                    <span className="font-mono text-[11px] text-[var(--text-muted)]">{user.id}</span>
+                  </div>
+                </div>
+
+                {/* Impact Summary */}
+                <div className="space-y-1.5 text-xs text-[var(--text-secondary)]">
+                  <p className="font-semibold text-[var(--text-primary)]">
+                    Associated candidate data that will be permanently purged:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 pl-1 text-[11px] text-[var(--text-muted)]">
+                    <li>{resumes.length} uploaded resumes and version histories</li>
+                    <li>{analyses.length} ATS analyses and keyword score logs</li>
+                    <li>{assessments.length} assessment attempts and question snapshots</li>
+                    <li>{verifiedSkills.length} verified skills and issued certificates</li>
+                    <li>{searches.length} job search records and application entries</li>
+                  </ul>
+                </div>
+
+                <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/15 text-[11px] text-red-400">
+                  <span className="font-bold">Warning:</span> This action is permanent and cannot be undone.
+                </div>
+              </>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-[var(--border-color)]">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)] text-xs font-semibold text-[var(--text-primary)] transition-all"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDeleteUser}
+                disabled={isDeleting || isSelf}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md shadow-red-600/20"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Removing Account...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Permanently Remove User</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

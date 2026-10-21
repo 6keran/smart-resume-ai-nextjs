@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
-import { INITIAL_USER_SKILLS } from '@/lib/mockData';
+import { getDb } from '@/server/db/adapter';
 
 export async function GET() {
   try {
-    return NextResponse.json(INITIAL_USER_SKILLS);
+    const db = getDb();
+    const skills = await db
+      .prepare('SELECT id, name, slug, category, description FROM skills_catalog WHERE is_active = 1 ORDER BY category, name')
+      .all();
+    return NextResponse.json(skills || []);
   } catch (err) {
     console.error('API /api/skills error:', err);
-    return NextResponse.json({ message: 'Error retrieving skills.' }, { status: 500 });
+    return NextResponse.json([], { status: 500 });
   }
 }

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import dns from 'node:dns';
 import { DatabaseSync } from 'node:sqlite';
 import pg from 'pg';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 try {
   dns.setDefaultResultOrder?.('ipv4first');
@@ -24,7 +25,14 @@ export interface DatabaseClient {
   isPostgres: boolean;
   exec(sql: string): Promise<void> | void;
   prepare(sql: string): StatementClient;
+  transaction<T>(fn: (tx: DatabaseClient) => Promise<T>): Promise<T>;
   close?(): Promise<void> | void;
+}
+
+export const activeTxStorage = new AsyncLocalStorage<DatabaseClient>();
+
+export function getActiveTx(): DatabaseClient | undefined {
+  return activeTxStorage.getStore();
 }
 
 let dbClientInstance: DatabaseClient | null = null;
@@ -86,6 +94,124 @@ export function toPostgresSql(sql: string): string {
 }
 
 /**
+ * Creates a scoped PostgreSQL transaction client wrapping a dedicated pool client.
+ * Supports arbitrary savepoint nesting for nested transactions.
+ */
+export function createPgTxClient(
+  client: pg.PoolClient | { query: (sql: string, params?: any[]) => Promise<any> },
+  depth: number = 0
+): DatabaseClient {
+  const txClient: DatabaseClient = {
+    isPostgres: true,
+    async exec(sql: string) {
+      if (/^\s*PRAGMA/i.test(sql)) {
+        return; // Skip SQLite PRAGMAs in PostgreSQL
+      }
+      await client.query(toPostgresSql(sql));
+    },
+    prepare(sql: string): StatementClient {
+      if (/^\s*PRAGMA/i.test(sql)) {
+        return {
+          get: async () => undefined,
+          all: async () => [],
+          run: async () => ({ changes: 0 }),
+        };
+      }
+
+      const pgSql = toPostgresSql(sql);
+
+      return {
+        async get(...params: any[]) {
+          const res = await client.query(pgSql, params);
+          return res.rows[0] ?? undefined;
+        },
+        async all(...params: any[]) {
+          const res = await client.query(pgSql, params);
+          return res.rows;
+        },
+        async run(...params: any[]) {
+          const res = await client.query(pgSql, params);
+          return {
+            changes: res.rowCount ?? 0,
+            lastInsertRowid: 0,
+          };
+        },
+      };
+    },
+    async transaction<T>(fn: (nestedTx: DatabaseClient) => Promise<T>): Promise<T> {
+      const nextDepth = depth + 1;
+      const savepointName = `sra_pg_sp_${nextDepth}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      await client.query(`SAVEPOINT ${savepointName}`);
+      try {
+        const nestedTx = createPgTxClient(client, nextDepth);
+        const result = await activeTxStorage.run(nestedTx, () => fn(nestedTx));
+        await client.query(`RELEASE SAVEPOINT ${savepointName}`);
+        return result;
+      } catch (err) {
+        try {
+          await client.query(`ROLLBACK TO SAVEPOINT ${savepointName}`);
+        } catch (rbErr) {
+          console.error('[Smart Resume AI] PostgreSQL savepoint rollback error:', rbErr);
+        }
+        throw err;
+      }
+    },
+  };
+
+  return txClient;
+}
+
+let sqliteLock: Promise<void> = Promise.resolve();
+
+/**
+ * Creates a scoped SQLite transaction client wrapping the synchronous DatabaseSync.
+ * Supports arbitrary savepoint nesting for nested transactions.
+ */
+export function createSqliteTxClient(sqliteDb: DatabaseSync, depth: number = 0): DatabaseClient {
+  const txClient: DatabaseClient = {
+    isPostgres: false,
+    exec(sql: string) {
+      sqliteDb.exec(sql);
+    },
+    prepare(sql: string): StatementClient {
+      const stmt = sqliteDb.prepare(sql);
+      return {
+        get(...params: any[]) {
+          return stmt.get(...params);
+        },
+        all(...params: any[]) {
+          return stmt.all(...params);
+        },
+        run(...params: any[]) {
+          return stmt.run(...params);
+        },
+      };
+    },
+    async transaction<T>(fn: (nestedTx: DatabaseClient) => Promise<T>): Promise<T> {
+      const nextDepth = depth + 1;
+      const savepointName = `sra_sqlite_sp_${nextDepth}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      sqliteDb.exec(`SAVEPOINT ${savepointName};`);
+      try {
+        const nestedTx = createSqliteTxClient(sqliteDb, nextDepth);
+        const result = await activeTxStorage.run(nestedTx, () => fn(nestedTx));
+        sqliteDb.exec(`RELEASE SAVEPOINT ${savepointName};`);
+        return result;
+      } catch (err) {
+        try {
+          sqliteDb.exec(`ROLLBACK TO SAVEPOINT ${savepointName};`);
+          sqliteDb.exec(`RELEASE SAVEPOINT ${savepointName};`);
+        } catch (rbErr) {
+          console.error('[Smart Resume AI] SQLite savepoint rollback error:', rbErr);
+        }
+        throw err;
+      }
+    },
+  };
+
+  return txClient;
+}
+
+/**
  * Initializes and returns the active database client singleton.
  * - In Vercel / serverless / production: Uses PostgreSQL via POSTGRES_URL or DATABASE_URL.
  * - In local development: Uses node:sqlite with data/smart_resume.db by default to prevent
@@ -93,6 +219,11 @@ export function toPostgresSql(sql: string): string {
  * - Explicit override: Set DB_PROVIDER=postgres or FORCE_POSTGRES=true to connect to PostgreSQL locally.
  */
 export function getDb(): DatabaseClient {
+  const ambientTx = activeTxStorage.getStore();
+  if (ambientTx) {
+    return ambientTx;
+  }
+
   if (dbClientInstance) {
     return dbClientInstance;
   }
@@ -171,6 +302,30 @@ export function getDb(): DatabaseClient {
           },
         };
       },
+      async transaction<T>(fn: (tx: DatabaseClient) => Promise<T>): Promise<T> {
+        const ambientTx = activeTxStorage.getStore();
+        if (ambientTx) {
+          return await ambientTx.transaction(fn);
+        }
+
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const txClient = createPgTxClient(client, 0);
+          const result = await activeTxStorage.run(txClient, () => fn(txClient));
+          await client.query('COMMIT');
+          return result;
+        } catch (err) {
+          try {
+            await client.query('ROLLBACK');
+          } catch (rbErr) {
+            console.error('[Smart Resume AI] PostgreSQL rollback error:', rbErr);
+          }
+          throw err;
+        } finally {
+          client.release();
+        }
+      },
       async close() {
         if (postgresPoolInstance) {
           await postgresPoolInstance.end();
@@ -218,6 +373,39 @@ export function getDb(): DatabaseClient {
           return stmt.run(...params);
         },
       };
+    },
+    async transaction<T>(fn: (tx: DatabaseClient) => Promise<T>): Promise<T> {
+      const ambientTx = activeTxStorage.getStore();
+      if (ambientTx) {
+        return await ambientTx.transaction(fn);
+      }
+
+      let releaseLock: () => void;
+      const nextLock = new Promise<void>((resolve) => {
+        releaseLock = resolve;
+      });
+      const currentLock = sqliteLock;
+      sqliteLock = sqliteLock.then(() => nextLock, () => nextLock);
+      await currentLock;
+
+      try {
+        sqliteDb.exec('BEGIN IMMEDIATE;');
+        try {
+          const txClient = createSqliteTxClient(sqliteDb, 0);
+          const result = await activeTxStorage.run(txClient, () => fn(txClient));
+          sqliteDb.exec('COMMIT;');
+          return result;
+        } catch (err) {
+          try {
+            sqliteDb.exec('ROLLBACK;');
+          } catch (rbErr) {
+            console.error('[Smart Resume AI] SQLite rollback error:', rbErr);
+          }
+          throw err;
+        }
+      } finally {
+        releaseLock!();
+      }
     },
     close() {
       try {

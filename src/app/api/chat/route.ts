@@ -108,8 +108,14 @@ function formatChatContents(history: ChatMessage[], latestUserMessage: string) {
 
 export async function POST(req: Request) {
   try {
-    // Optional user session context
-    await getUserFromRequest(req).catch(() => null);
+    // Enforce authenticated user session
+    const user = await getUserFromRequest(req).catch(() => null);
+    if (!user) {
+      return NextResponse.json(
+        { message: 'Authentication required. Please sign in to interact with the AI Assistant.' },
+        { status: 401 }
+      );
+    }
 
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== 'object') {

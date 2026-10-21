@@ -12,6 +12,7 @@ import {
   getAdminJobMatches,
   getAdminFeedback,
   getVisitorActivity,
+  deleteUserAndData,
 } from '@/lib/db';
 
 export async function GET(req: Request) {
@@ -59,5 +60,45 @@ export async function GET(req: Request) {
   } catch (err) {
     console.error('API /api/admin/records error:', err);
     return NextResponse.json({ message: 'Failed to retrieve records.' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('sra_admin_session')?.value;
+    const admin = verifyAdminToken(token);
+
+    if (!admin || admin.role !== 'ADMIN') {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get('type');
+    let id = searchParams.get('id');
+
+    if (!id) {
+      try {
+        const body = await req.json();
+        id = body?.id;
+      } catch {}
+    }
+
+    if (type === 'users' || type === 'user') {
+      if (!id) return NextResponse.json({ message: 'User ID required' }, { status: 400 });
+      const result = await deleteUserAndData(id, { id: admin.sub, email: admin.email });
+      return NextResponse.json(result);
+    }
+
+    return NextResponse.json({ message: `Deletion not supported for type: ${type}` }, { status: 400 });
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    if (errorMsg.includes('not found')) {
+      return NextResponse.json({ message: errorMsg }, { status: 404 });
+    }
+    if (errorMsg.includes('Action prohibited')) {
+      return NextResponse.json({ message: errorMsg }, { status: 403 });
+    }
+    return NextResponse.json({ message: errorMsg || 'Failed to delete record.' }, { status: 500 });
   }
 }

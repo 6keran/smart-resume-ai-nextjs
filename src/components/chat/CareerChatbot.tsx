@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   MessageSquare,
   X,
@@ -16,6 +17,8 @@ import {
   Minimize2,
   Copy,
   Check,
+  Compass,
+  GripHorizontal,
 } from 'lucide-react';
 import { useResume } from '@/context/ResumeContext';
 import { useUserProfile } from '@/components/user/UserContext';
@@ -191,7 +194,21 @@ function FormattedAssistantMessage({ content }: { content: string }) {
   return <div className="space-y-0.5">{elements}</div>;
 }
 
+const STORAGE_KEY = 'sra_ai_launcher_pos';
+const MARGIN = 16;
+const DEFAULT_LAUNCHER_WIDTH = 135;
+const DEFAULT_LAUNCHER_HEIGHT = 44;
+const PANEL_WIDTH = 460;
+const PANEL_HEIGHT = 620;
+
+function clamp(val: number, min: number, max: number): number {
+  return Math.min(Math.max(val, min), max);
+}
+
 export function CareerChatbot() {
+  const pathname = usePathname();
+  const { user, loading, refreshUser } = useUserProfile();
+
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -203,23 +220,93 @@ export function CareerChatbot() {
     },
   ]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
+  // Draggable positioning state
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const launcherRef = useRef<HTMLDivElement>(null);
+  const pointerStartRef = useRef<{
+    startX: number;
+    startY: number;
+    initialX: number;
+    initialY: number;
+    moved: boolean;
+  } | null>(null);
 
   const { targetJob, resumeData } = useResume();
-  const { user } = useUserProfile();
+
+  // Strict route visibility rules: hide completely on auth, legal, and admin pages
+  const isExcludedRoute = Boolean(
+    pathname?.startsWith('/login') ||
+    pathname?.startsWith('/register') ||
+    pathname?.startsWith('/forgot-password') ||
+    pathname?.startsWith('/reset-password') ||
+    pathname?.startsWith('/admin') ||
+    pathname === '/privacy' ||
+    pathname === '/terms'
+  );
+
+  // Close and dismiss chat immediately on logout or session expiry
+  useEffect(() => {
+    if (!user) {
+      setIsOpen(false);
+      setIsFullScreen(false);
+    }
+  }, [user]);
+
+  // Safely restore persisted launcher position on client mount
+  useEffect(() => {
+    setIsClient(true);
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed?.x === 'number' && typeof parsed?.y === 'number') {
+          const clampedX = clamp(parsed.x, MARGIN, Math.max(MARGIN, window.innerWidth - DEFAULT_LAUNCHER_WIDTH - MARGIN));
+          const clampedY = clamp(parsed.y, MARGIN, Math.max(MARGIN, window.innerHeight - DEFAULT_LAUNCHER_HEIGHT - MARGIN));
+          setPosition({ x: clampedX, y: clampedY });
+        }
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, []);
+
+  // Recalculate and clamp position on viewport resize or mobile orientation changes
+  useEffect(() => {
+    const handleViewportChange = () => {
+      setPosition((prev) => {
+        if (!prev) return null;
+        const w = launcherRef.current?.offsetWidth || DEFAULT_LAUNCHER_WIDTH;
+        const h = launcherRef.current?.offsetHeight || DEFAULT_LAUNCHER_HEIGHT;
+        const clampedX = clamp(prev.x, MARGIN, Math.max(MARGIN, window.innerWidth - w - MARGIN));
+        const clampedY = clamp(prev.y, MARGIN, Math.max(MARGIN, window.innerHeight - h - MARGIN));
+        return { x: clampedX, y: clampedY };
+      });
+    };
+
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('orientationchange', handleViewportChange);
+    return () => {
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('orientationchange', handleViewportChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       inputRef.current?.focus();
     }
-  }, [isOpen, messages, loading, isFullScreen]);
+  }, [isOpen, messages, chatLoading, isFullScreen]);
 
   // Handle Escape key to exit full screen or close chat
   useEffect(() => {
@@ -258,9 +345,150 @@ export function CareerChatbot() {
     }, 60);
   };
 
+  const handleResetPosition = (e?: React.MouseEvent | React.KeyboardEvent) => {
+    e?.stopPropagation();
+    setPosition(null);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore localStorage errors
+    }
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+
+    const rect = launcherRef.current?.getBoundingClientRect();
+    const initialX = rect ? rect.left : (window.innerWidth - DEFAULT_LAUNCHER_WIDTH - MARGIN);
+    const initialY = rect ? rect.top : (window.innerHeight - DEFAULT_LAUNCHER_HEIGHT - MARGIN);
+
+    pointerStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX,
+      initialY,
+      moved: false,
+    };
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore if pointer capture fails
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!pointerStartRef.current) return;
+
+    const dx = e.clientX - pointerStartRef.current.startX;
+    const dy = e.clientY - pointerStartRef.current.startY;
+
+    // Distinguish between intentional drag and slight tap/click jitter
+    if (!pointerStartRef.current.moved) {
+      if (dx * dx + dy * dy > 25) {
+        pointerStartRef.current.moved = true;
+        setIsDragging(true);
+      } else {
+        return;
+      }
+    }
+
+    const launcherW = launcherRef.current?.offsetWidth || DEFAULT_LAUNCHER_WIDTH;
+    const launcherH = launcherRef.current?.offsetHeight || DEFAULT_LAUNCHER_HEIGHT;
+
+    const rawX = pointerStartRef.current.initialX + dx;
+    const rawY = pointerStartRef.current.initialY + dy;
+
+    const clampedX = clamp(rawX, MARGIN, Math.max(MARGIN, window.innerWidth - launcherW - MARGIN));
+    const clampedY = clamp(rawY, MARGIN, Math.max(MARGIN, window.innerHeight - launcherH - MARGIN));
+
+    setPosition({ x: clampedX, y: clampedY });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!pointerStartRef.current) return;
+
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // Ignore
+    }
+
+    const wasMoved = pointerStartRef.current.moved;
+    pointerStartRef.current = null;
+
+    if (wasMoved) {
+      if (position) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(position));
+        } catch {
+          // Ignore
+        }
+      }
+      setTimeout(() => setIsDragging(false), 80);
+    } else {
+      setIsDragging(false);
+      setIsOpen(true);
+    }
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // Ignore
+    }
+    pointerStartRef.current = null;
+    setIsDragging(false);
+  };
+
+  const handleKeyDownLauncher = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setIsOpen((prev) => !prev);
+      return;
+    }
+
+    // Accessible arrow key nudging: allow keyboard users to reposition
+    const STEP = 24;
+    let newPos: { x: number; y: number } | null = null;
+    const rect = launcherRef.current?.getBoundingClientRect();
+    const currX = position?.x ?? (rect?.left ?? (window.innerWidth - DEFAULT_LAUNCHER_WIDTH - MARGIN));
+    const currY = position?.y ?? (rect?.top ?? (window.innerHeight - DEFAULT_LAUNCHER_HEIGHT - MARGIN));
+    const launcherW = launcherRef.current?.offsetWidth || DEFAULT_LAUNCHER_WIDTH;
+    const launcherH = launcherRef.current?.offsetHeight || DEFAULT_LAUNCHER_HEIGHT;
+
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      newPos = { x: clamp(currX - STEP, MARGIN, window.innerWidth - launcherW - MARGIN), y: currY };
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      newPos = { x: clamp(currX + STEP, MARGIN, window.innerWidth - launcherW - MARGIN), y: currY };
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      newPos = { x: currX, y: clamp(currY - STEP, MARGIN, window.innerHeight - launcherH - MARGIN) };
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      newPos = { x: currX, y: clamp(currY + STEP, MARGIN, window.innerHeight - launcherH - MARGIN) };
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      handleResetPosition();
+      return;
+    }
+
+    if (newPos) {
+      setPosition(newPos);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newPos));
+      } catch {
+        // Ignore
+      }
+    }
+  };
+
   const handleSend = async (textToSend?: string) => {
     const text = (textToSend || input).trim();
-    if (!text || loading) return;
+    if (!text || chatLoading) return;
 
     setError(null);
     setLastFailedMessage(null);
@@ -280,7 +508,7 @@ export function CareerChatbot() {
     }
 
     if (!textToSend) setInput('');
-    setLoading(true);
+    setChatLoading(true);
 
     try {
       const context = {
@@ -306,6 +534,14 @@ export function CareerChatbot() {
         }),
       });
 
+      if (res.status === 401) {
+        // Session expired: immediately close chat and update session context
+        setIsOpen(false);
+        setIsFullScreen(false);
+        await refreshUser(null);
+        return;
+      }
+
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
@@ -330,7 +566,7 @@ export function CareerChatbot() {
       setError(msg);
       setLastFailedMessage(text);
     } finally {
-      setLoading(false);
+      setChatLoading(false);
     }
   };
 
@@ -348,23 +584,109 @@ export function CareerChatbot() {
     setLastFailedMessage(null);
   };
 
+  // Visibility Gate: completely hidden during auth loading, unauthenticated status, or on public/admin routes
+  if (loading || !user || isExcludedRoute) {
+    return null;
+  }
+
+  // Calculate intelligent panel placement when dragged on desktop
+  const getPanelStyle = (): React.CSSProperties => {
+    if (isFullScreen) return {};
+
+    // Mobile screens: use responsive inset styling via Tailwind classes
+    if (typeof window !== 'undefined' && window.innerWidth < 640) {
+      return {};
+    }
+
+    // Default position (bottom-right)
+    if (!position || !isClient) {
+      return {
+        bottom: '24px',
+        right: '24px',
+      };
+    }
+
+    const launcherW = DEFAULT_LAUNCHER_WIDTH;
+    const launcherH = DEFAULT_LAUNCHER_HEIGHT;
+    const style: React.CSSProperties = {};
+
+    // Horizontal placement: check if launcher is in right half or left half of viewport
+    const isRightHalf = (position.x + launcherW / 2) > (window.innerWidth / 2);
+    if (isRightHalf) {
+      const rightDistance = window.innerWidth - (position.x + launcherW);
+      style.right = `${clamp(rightDistance, MARGIN, window.innerWidth - PANEL_WIDTH - MARGIN)}px`;
+      style.left = 'auto';
+    } else {
+      style.left = `${clamp(position.x, MARGIN, window.innerWidth - PANEL_WIDTH - MARGIN)}px`;
+      style.right = 'auto';
+    }
+
+    // Vertical placement: check if launcher is in bottom half or top half of viewport
+    const isBottomHalf = (position.y + launcherH / 2) > (window.innerHeight / 2);
+    if (isBottomHalf) {
+      const bottomDistance = window.innerHeight - position.y + 12;
+      style.bottom = `${clamp(bottomDistance, MARGIN, window.innerHeight - PANEL_HEIGHT - MARGIN)}px`;
+      style.top = 'auto';
+    } else {
+      const topDistance = position.y + launcherH + 12;
+      style.top = `${clamp(topDistance, MARGIN, window.innerHeight - PANEL_HEIGHT - MARGIN)}px`;
+      style.bottom = 'auto';
+    }
+
+    return style;
+  };
+
+  const launcherStyle: React.CSSProperties = position && isClient
+    ? {
+        position: 'fixed',
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        touchAction: 'none',
+      }
+    : {
+        position: 'fixed',
+        bottom: '1.5rem',
+        right: '1.5rem',
+        touchAction: 'none',
+      };
+
   return (
     <>
-      {/* Floating Launcher Trigger */}
-      <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 no-print">
-        {!isOpen && (
+      {/* Floating Draggable Launcher Trigger */}
+      {!isOpen && (
+        <div
+          ref={launcherRef}
+          style={launcherStyle}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          className={`z-50 select-none no-print transition-shadow ${
+            isDragging ? 'cursor-grabbing opacity-90 scale-105' : 'cursor-grab'
+          }`}
+        >
           <button
-            onClick={() => setIsOpen(true)}
-            className="flex items-center gap-2 sm:gap-2.5 px-3 py-2.5 sm:px-4 sm:py-3 rounded-full bg-[#0F172A] hover:bg-[#1E293B] text-white shadow-xl hover:shadow-2xl hover:scale-105 transition-all border border-slate-700/60 cursor-pointer group"
-            aria-label="Open AI Assistant"
+            type="button"
+            onClick={(e) => {
+              if (isDragging) {
+                e.preventDefault();
+                return;
+              }
+              setIsOpen(true);
+            }}
+            onKeyDown={handleKeyDownLauncher}
+            className="flex items-center gap-2 sm:gap-2.5 px-3 py-2.5 sm:px-4 sm:py-3 rounded-full bg-[#0F172A] hover:bg-[#1E293B] text-white shadow-xl hover:shadow-2xl transition-transform border border-slate-700/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 group cursor-pointer"
+            aria-label="Open AI Assistant (Draggable, use arrow keys to reposition)"
+            title={position ? "AI Assistant (Drag to move, Home key to reset)" : "AI Assistant (Drag to reposition)"}
           >
             <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white shrink-0 group-hover:rotate-12 transition-transform">
               <Sparkles className="w-3.5 h-3.5" />
             </div>
             <span className="text-xs font-semibold tracking-wide hidden xs:inline sm:inline">AI Assistant</span>
+            <GripHorizontal className="w-3 h-3 text-slate-500 group-hover:text-slate-300 ml-0.5 opacity-60" aria-hidden="true" />
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Chat Window: Windowed vs Full Screen */}
       {isOpen && (
@@ -372,10 +694,11 @@ export function CareerChatbot() {
           role="dialog"
           aria-label="Smart Resume AI Assistant"
           aria-modal={isFullScreen}
+          style={getPanelStyle()}
           className={
             isFullScreen
               ? 'fixed inset-0 z-50 w-screen h-[100dvh] max-h-[100dvh] bg-white dark:bg-[#0F172A] flex flex-col overflow-hidden no-print transition-all duration-200 ease-in-out'
-              : 'fixed inset-x-2 bottom-2 sm:inset-x-auto sm:bottom-6 sm:right-6 z-50 w-auto sm:w-[460px] max-w-[calc(100vw-16px)] sm:max-w-none h-[560px] sm:h-[620px] max-h-[calc(100dvh-16px)] sm:max-h-[85vh] rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden no-print animate-in fade-in slide-in-from-bottom-4 duration-200'
+              : 'fixed inset-x-2 bottom-2 sm:inset-x-auto z-50 w-auto sm:w-[460px] max-w-[calc(100vw-16px)] sm:max-w-none h-[560px] sm:h-[620px] max-h-[calc(100dvh-16px)] sm:max-h-[85vh] rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden no-print animate-in fade-in slide-in-from-bottom-4 duration-200'
           }
         >
           {/* Header */}
@@ -396,6 +719,17 @@ export function CareerChatbot() {
               </div>
 
               <div className="flex items-center gap-1">
+                {position && (
+                  <button
+                    type="button"
+                    onClick={handleResetPosition}
+                    title="Reset launcher position to default bottom-right (Home)"
+                    aria-label="Reset launcher position to default bottom-right"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    <Compass className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleReset}
@@ -476,7 +810,7 @@ export function CareerChatbot() {
                 </div>
               ))}
 
-              {loading && (
+              {chatLoading && (
                 <div className="flex items-center gap-2 text-slate-500 text-xs py-2">
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
                   <span>Generating response...</span>
@@ -496,7 +830,7 @@ export function CareerChatbot() {
                         onClick={() => handleSend(lastFailedMessage)}
                         className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium text-[11px] transition-colors cursor-pointer"
                       >
-                        <RotateCcw className="w-3 h-3" />
+                        <RotateCcw className="w-3.5 h-3.5" />
                         Retry
                       </button>
                     </div>
@@ -548,16 +882,16 @@ export function CareerChatbot() {
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask about programming, general knowledge, or resumes..."
                   maxLength={2000}
-                  disabled={loading}
+                  disabled={chatLoading}
                   className="flex-1 h-10 px-3 text-xs sm:text-sm rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 disabled:opacity-50"
                 />
                 <button
                   type="submit"
-                  disabled={!input.trim() || loading}
+                  disabled={!input.trim() || chatLoading}
                   className="h-10 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
                   aria-label="Send message"
                 >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {chatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </button>
               </form>
             </div>

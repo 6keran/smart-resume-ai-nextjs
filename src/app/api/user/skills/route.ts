@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/userSession';
 import { getUserSkills, addUserSkill, deleteUserSkill, getUserSkillsStatus } from '@/lib/db';
-import { INITIAL_USER_SKILLS } from '@/lib/mockData';
 
 export async function GET(req: Request) {
   try {
@@ -13,7 +12,7 @@ export async function GET(req: Request) {
       if (wantCatalog) {
         return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
       }
-      return NextResponse.json({ success: true, skills: INITIAL_USER_SKILLS });
+      return NextResponse.json({ success: true, skills: [] });
     }
 
     if (wantCatalog) {

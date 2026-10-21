@@ -1,20 +1,37 @@
 import { NextResponse } from 'next/server';
+import { getCertificateByCode } from '@/server/db';
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const code = searchParams.get('code') || '';
+    const code = searchParams.get('code')?.trim() || '';
 
-    // Sample verification response
+    if (!code) {
+      return NextResponse.json(
+        { valid: false, message: 'Verification code is required.' },
+        { status: 400 }
+      );
+    }
+
+    const cert = await getCertificateByCode(code);
+
+    if (!cert) {
+      return NextResponse.json(
+        { valid: false, message: 'Certificate not found or invalid verification code.' },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({
       valid: true,
-      verificationCode: code || 'SRA-VER-2024-9102',
-      userName: 'Verified Candidate',
-      skill: 'Python',
-      score: 9,
-      passingScore: 7,
-      issuedAt: '2024-02-10',
-      verificationStatus: 'VERIFIED',
+      verificationCode: cert.certificateCode,
+      userName: cert.userName,
+      skill: cert.skill,
+      score: cert.score,
+      totalQuestions: cert.totalQuestions,
+      percentage: cert.percentage,
+      issuedAt: cert.issueDate,
+      verificationStatus: cert.verificationStatus,
       issuer: 'Smart Resume AI Career Intelligence',
     });
   } catch (err) {

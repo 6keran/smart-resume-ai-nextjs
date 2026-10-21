@@ -55,38 +55,7 @@ export const INITIAL_RESUME_DATA: ResumeData = {
   lastUpdated: new Date().toISOString(),
 };
 
-export const INITIAL_USER_SKILLS: UserSkill[] = [
-  {
-    id: 'skill_01',
-    name: 'Python',
-    category: 'Programming',
-    status: 'not-verified',
-  },
-  {
-    id: 'skill_02',
-    name: 'SQL',
-    category: 'Database',
-    status: 'not-verified',
-  },
-  {
-    id: 'skill_03',
-    name: 'React',
-    category: 'Frontend',
-    status: 'not-verified',
-  },
-  {
-    id: 'skill_04',
-    name: 'JavaScript',
-    category: 'Programming',
-    status: 'not-verified',
-  },
-  {
-    id: 'skill_05',
-    name: 'Git',
-    category: 'Cloud & DevOps',
-    status: 'not-verified',
-  },
-];
+export const INITIAL_USER_SKILLS: UserSkill[] = [];
 
 export const INITIAL_METRICS: DashboardMetrics = {
   resumesAnalyzed: 0,

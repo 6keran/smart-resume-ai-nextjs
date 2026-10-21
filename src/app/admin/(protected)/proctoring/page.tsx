@@ -342,7 +342,7 @@ export default function AdminProctoringPage() {
                   <Camera className="w-8 h-8 opacity-75" />
                 </div>
                 <p className="text-xs font-medium text-slate-300">
-                  Candidate: {selectedSession.user_name || 'Verified User'} ({selectedSession.user_email || 'user@example.com'})
+                  Candidate: {selectedSession.user_name || 'Verified User'} ({selectedSession.user_email || 'No email recorded'})
                 </p>
                 <p className="text-[11px] text-slate-400">
                   Target Skill: {selectedSession.skill} • Exam Status: {selectedSession.status}

@@ -1,7 +1,7 @@
 import 'server-only';
 import crypto from 'node:crypto';
 import { SEED_SKILLS, INITIAL_ASSESSMENT_QUESTIONS } from './seedQuestions';
-import { getDb as getDbFromAdapter, type DatabaseClient } from './adapter';
+import { getDb as getDbFromAdapter, getActiveTx, type DatabaseClient } from './adapter';
 
 export type { DatabaseClient };
 
@@ -56,6 +56,11 @@ export const getValidatedSessionSecret = getAdminSessionSecret;
  * Returns the active database instance (PostgreSQL on Vercel/production, SQLite in local development).
  */
 export function getDb(): DatabaseClient {
+  const activeTx = getActiveTx();
+  if (activeTx) {
+    return activeTx;
+  }
+
   if (dbInstance && isInitialized) {
     return dbInstance;
   }
@@ -836,14 +841,18 @@ function ensureSeedCourses(db: DatabaseClient) {
 // REAL AUDIT LOG SYSTEM
 // ==========================================
 
-export async function logAuditEvent(data: {
-  eventType: string;
-  actorType?: 'USER' | 'VISITOR' | 'ADMIN' | 'SYSTEM';
-  actorId?: string;
-  description: string;
-  metadata?: Record<string, any>;
-}): Promise<string> {
-  const db = getDb();
+export async function logAuditEvent(
+  data: {
+    eventType: string;
+    actorType?: 'USER' | 'VISITOR' | 'ADMIN' | 'SYSTEM';
+    actorId?: string;
+    description: string;
+    metadata?: Record<string, any>;
+  },
+  dbClient?: DatabaseClient,
+  throwOnError: boolean = false
+): Promise<string> {
+  const db = dbClient || getDb();
   const id = `aud_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
 
@@ -862,6 +871,9 @@ export async function logAuditEvent(data: {
     );
   } catch (err) {
     console.error('[DB Audit Event Error] Failed to record audit event:', err);
+    if (throwOnError || (dbClient && throwOnError !== false)) {
+      throw err;
+    }
   }
 
   return id;
@@ -4538,74 +4550,11 @@ export async function updateUserCourseProgress(userId: string, courseId: string,
  */
 export async function getUserSkills(userId: string) {
   const db = getDb();
-  let rows = await db.prepare('SELECT * FROM user_skills WHERE user_id = ? ORDER BY created_at ASC').all(userId) as any[];
+  const rows = await db.prepare('SELECT * FROM user_skills WHERE user_id = ? ORDER BY created_at ASC').all(userId) as any[];
 
-  // If user has no skills tracked yet, seed their initial skills and check against verified_skills
+  // If user has no skills tracked yet, return empty list
   if (rows.length === 0) {
-    const initialSkills: { name: string; category: string }[] = [
-      { name: 'Python', category: 'Programming' },
-      { name: 'SQL', category: 'Database' },
-      { name: 'React', category: 'Frontend' },
-      { name: 'AWS', category: 'Cloud & DevOps' },
-      { name: 'Machine Learning', category: 'AI / Data' },
-      { name: 'JavaScript', category: 'Programming' },
-      { name: 'Git', category: 'Cloud & DevOps' },
-    ];
-
-    const now = new Date().toISOString();
-    const insertStmt = await db.prepare(`
-      INSERT OR IGNORE INTO user_skills (
-        id, user_id, skill_name, category, status, score, certificate_id,
-        verified_date, claimed_date, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    for (let i = 0; i < initialSkills.length; i++) {
-      const s = initialSkills[i];
-      const id = `usk_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`;
-
-      // Check if this user has already verified this skill in verified_skills table
-      const verified = (await db.prepare(`
-        SELECT vs.*, a.score as att_score, a.total_questions, c.certificate_code
-        FROM verified_skills vs
-        LEFT JOIN assessments a ON vs.assessment_id = a.id
-        LEFT JOIN certificates c ON vs.assessment_id = c.assessment_id
-        WHERE vs.user_id = ? AND LOWER(vs.skill_name) = LOWER(?) AND vs.status = 'VERIFIED'
-        ORDER BY vs.verified_at DESC LIMIT 1
-      `).get(userId, s.name)) as any;
-
-      if (verified) {
-        await insertStmt.run(
-          id,
-          userId,
-          s.name,
-          s.category,
-          'verified',
-          verified.att_score || 8,
-          verified.certificate_code || null,
-          verified.verified_at || now.split('T')[0],
-          null,
-          now,
-          now
-        );
-      } else {
-        await insertStmt.run(
-          id,
-          userId,
-          s.name,
-          s.category,
-          'not-verified',
-          null,
-          null,
-          null,
-          null,
-          now,
-          now
-        );
-      }
-    }
-
-    rows = await db.prepare('SELECT * FROM user_skills WHERE user_id = ? ORDER BY created_at ASC').all(userId) as any[];
+    return [];
   }
 
   // Sync any newly verified skills from verified_skills/certificates
@@ -4940,6 +4889,115 @@ export async function getProctoringSummary() {
       recentEvents: [],
     };
   }
+}
+
+// ==========================================
+// ADMIN USER DELETION & DATA PURGE
+// ==========================================
+
+export async function deleteUserAndData(
+  targetUserId: string,
+  adminActor: { id: string; email: string }
+): Promise<{ success: boolean; message: string; deletedUser: { id: string; name: string; email: string | null } }> {
+  const db = getDb();
+
+  return await db.transaction(async (tx) => {
+    // 1. Fetch user to verify existence
+    const user = (await tx
+      .prepare('SELECT id, name, email, role, is_active FROM users WHERE id = ?')
+      .get(targetUserId)) as { id: string; name: string; email: string | null; role: string; is_active: number } | undefined;
+
+    if (!user) {
+      throw new Error('User account not found.');
+    }
+
+    // 2. Prevent self-deletion
+    const adminActorEmail = (adminActor.email || '').trim().toLowerCase();
+    const userEmail = (user.email || '').trim().toLowerCase();
+    if (adminActor.id === user.id || (userEmail && adminActorEmail === userEmail)) {
+      throw new Error('Action prohibited: Administrators cannot delete their own account from the Admin Console.');
+    }
+
+    // 3. Prevent deleting the last active administrator
+    if (user.role === 'ADMIN') {
+      const activeAdminUsersCount = ((await tx.prepare('SELECT COUNT(*) as c FROM admin_users WHERE is_active = 1').get()) as { c: number })?.c || 0;
+      const otherActiveUsersAdminsCount = ((await tx.prepare("SELECT COUNT(*) as c FROM users WHERE role = 'ADMIN' AND is_active = 1 AND id != ?").get(user.id)) as { c: number })?.c || 0;
+      if (activeAdminUsersCount <= 1 && otherActiveUsersAdminsCount === 0) {
+        throw new Error('Action prohibited: Cannot delete the last active administrator account.');
+      }
+    }
+
+    // 4. Cascade delete & anonymize related data across all 23 database tables
+    // Resumes and versioning
+    await tx.prepare('DELETE FROM resume_improvements WHERE user_id = ?').run(targetUserId);
+    await tx.prepare('DELETE FROM resume_versions WHERE user_id = ?').run(targetUserId);
+    await tx.prepare('DELETE FROM resume_analyses WHERE user_id = ?').run(targetUserId);
+    await tx.prepare('DELETE FROM resumes WHERE user_id = ?').run(targetUserId);
+
+    // Job applications
+    await tx.prepare('DELETE FROM job_applications WHERE user_id = ?').run(targetUserId);
+
+    // Assessments & related snapshots/proctoring
+    await tx.prepare('DELETE FROM certificates WHERE user_id = ?').run(targetUserId);
+    await tx.prepare('DELETE FROM verified_skills WHERE user_id = ?').run(targetUserId);
+    await tx.prepare('DELETE FROM user_skills WHERE user_id = ?').run(targetUserId);
+
+    const userAssessments = (await tx.prepare('SELECT id FROM assessments WHERE user_id = ?').all(targetUserId)) as Array<{ id: string }>;
+    for (const a of userAssessments) {
+      await tx.prepare('DELETE FROM assessment_question_snapshots WHERE assessment_id = ?').run(a.id);
+      await tx.prepare('DELETE FROM proctoring_events WHERE assessment_id = ?').run(a.id);
+    }
+    await tx.prepare('DELETE FROM assessments WHERE user_id = ?').run(targetUserId);
+
+    // Course progress
+    await tx.prepare('DELETE FROM course_progress WHERE user_id = ?').run(targetUserId);
+
+    // Job searches & matches
+    const userSearches = (await tx.prepare('SELECT id FROM job_searches WHERE user_id = ?').all(targetUserId)) as Array<{ id: string }>;
+    for (const s of userSearches) {
+      await tx.prepare('DELETE FROM job_search_results WHERE search_id = ?').run(s.id);
+    }
+    await tx.prepare('DELETE FROM job_searches WHERE user_id = ?').run(targetUserId);
+    await tx.prepare('DELETE FROM job_matches WHERE user_id = ?').run(targetUserId);
+
+    // Anonymize visitors & feedback to preserve aggregate metrics without PII
+    await tx.prepare('UPDATE visitors SET user_id = NULL WHERE user_id = ?').run(targetUserId);
+    await tx.prepare('UPDATE feedback SET user_id = NULL WHERE user_id = ?').run(targetUserId);
+
+    // Delete matching admin_users account if one exists (and is not the executing admin)
+    if (userEmail && userEmail !== adminActorEmail) {
+      await tx.prepare('DELETE FROM admin_users WHERE LOWER(email) = ? AND id != ?').run(userEmail, adminActor.id);
+    }
+
+    // Delete from primary users table
+    await tx.prepare('DELETE FROM users WHERE id = ?').run(targetUserId);
+
+    // 5. Record Administrative Audit Log in the same transaction
+    await logAuditEvent({
+      eventType: 'ADMIN_USER_DELETED',
+      actorType: 'ADMIN',
+      actorId: adminActor.id,
+      description: `Administrator ${adminActor.email} deleted user "${user.name}" (${user.email || 'no-email'}) [ID: ${user.id}] and purged associated candidate records.`,
+      metadata: {
+        deletedUserId: user.id,
+        deletedUserName: user.name,
+        deletedUserEmail: user.email,
+        adminId: adminActor.id,
+        adminEmail: adminActor.email,
+        timestamp: new Date().toISOString(),
+      },
+    }, tx, true);
+
+    return {
+      success: true,
+      message: `User "${user.name}" and all associated data have been successfully removed.`,
+      deletedUser: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+      },
+    };
+  });
 }
 
 
